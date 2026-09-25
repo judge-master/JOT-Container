@@ -55,8 +55,8 @@ enum GradePhase {
 
 message GradeResult {
   Verdict verdict = 1;
-  uint32 max_instruction_count = 2;
-  uint32 max_memory_bytes = 3;
+  uint64 max_instruction_count = 2;
+  uint64 max_memory_bytes = 3;
   // Populated for a compilation failure; capped by the server. May be blank if no error occurred.
   string compiler_diagnostics = 4;
   // Short explanation for a grading system failure, without secrets. May be blank if no error occurred.
@@ -71,6 +71,6 @@ enum Verdict {
   VERDICT_RUNTIME_ERROR = 4;
   VERDICT_TIME_LIMIT_EXCEEDED = 5;
   VERDICT_MEMORY_LIMIT_EXCEEDED = 6;
-  VERDICT_OUTPUT_LIMIT_EXCEEDED = 7;
+  VERDICT_BUILD_ARTIFACT_LIMIT_EXCEEDED = 7;
   VERDICT_SYSTEM_ERROR = 8;
 }
