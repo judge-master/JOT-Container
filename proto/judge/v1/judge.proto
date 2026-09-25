@@ -20,10 +20,9 @@ message GradeRequest {
 }
 
 enum Language {
-  LANGUAGE_UNSPECIFIED = 0;
-  LANGUAGE_CPP = 1;
-  LANGUAGE_RUST = 2;
-  LANGUAGE_GO = 3;
+  LANGUAGE_CPP = 0;
+  LANGUAGE_RUST = 1;
+  LANGUAGE_GO = 2;
 }
 
 message ResourceLimits {
