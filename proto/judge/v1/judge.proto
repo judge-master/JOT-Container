@@ -22,10 +22,12 @@ enum Language {
 
 message ResourceLimits {
   uint64 compile_time_ms = 1;
-  uint64 case_time_ms = 2;
+  uint64 instruction_count = 2;
   uint64 memory_bytes = 3;
-  uint64 output_bytes = 4;
+  uint64 build_artifact_bytes = 4;
 }
+
+// Output
 
 message GradeEvent {
   int64 request_id = 1;
@@ -53,10 +55,12 @@ enum GradePhase {
 
 message GradeResult {
   Verdict verdict = 1;
-  // Populated for a compilation failure; capped by the server.
-  string compiler_diagnostics = 2;
-  // Short explanation for a grading system failure, without secrets.
-  string error_message = 3;
+  uint32 max_instruction_count = 2;
+  uint32 max_memory_bytes = 3;
+  // Populated for a compilation failure; capped by the server. May be blank if no error occurred.
+  string compiler_diagnostics = 4;
+  // Short explanation for a grading system failure, without secrets. May be blank if no error occurred.
+  string error_message = 5;
 }
 
 enum Verdict {
