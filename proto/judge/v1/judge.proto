@@ -45,12 +45,10 @@ message GradeEvent {
 
 message GradeProgress {
   GradePhase phase = 1;
-  // Monotonic in the range 0..100; the final result ends the stream.
-  uint32 percent = 2;
-  uint32 completed_cases = 3;
-  uint32 total_cases = 4;
+  uint32 completed_cases = 2;
+  uint32 total_cases = 3;
   // Short, non-sensitive description of the current operation.
-  string message = 5;
+  string message = 4;
 }
 
 enum GradePhase {
