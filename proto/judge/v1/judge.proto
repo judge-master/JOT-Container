@@ -2,21 +2,16 @@ syntax = "proto3";
 
 package jot.judge.v1;
 
-// One request produces zero or more progress events followed by one result event.
-// Invalid requests may instead fail with a gRPC status before grading starts.
 service JudgeService {
   rpc Grade(GradeRequest) returns (stream GradeEvent);
 }
 
 message GradeRequest {
   // Set by the backend to correlate the request, stream, and logs.
-  string request_id = 1;
+  int64 request_id = 1;
   Language language = 2;
   string source_code = 3;
-  string case_set_id = 4;
-  // An immutable case-set version. Also forms part of the cache key.
-  string case_set_version = 5;
-  ResourceLimits limits = 6;
+  ResourceLimits limits = 4;
 }
 
 enum Language {
@@ -26,7 +21,6 @@ enum Language {
 }
 
 message ResourceLimits {
-  // Zero means the server-configured default. The server enforces upper bounds.
   uint64 compile_time_ms = 1;
   uint64 case_time_ms = 2;
   uint64 memory_bytes = 3;
@@ -34,7 +28,7 @@ message ResourceLimits {
 }
 
 message GradeEvent {
-  string request_id = 1;
+  int64 request_id = 1;
 
   oneof payload {
     GradeProgress progress = 2;
@@ -46,8 +40,6 @@ message GradeProgress {
   GradePhase phase = 1;
   uint32 completed_cases = 2;
   uint32 total_cases = 3;
-  // Short, non-sensitive description of the current operation.
-  string message = 4;
 }
 
 enum GradePhase {
@@ -61,18 +53,10 @@ enum GradePhase {
 
 message GradeResult {
   Verdict verdict = 1;
-  repeated CaseResult cases = 2;
   // Populated for a compilation failure; capped by the server.
-  string compiler_diagnostics = 3;
+  string compiler_diagnostics = 2;
   // Short explanation for a grading system failure, without secrets.
-  string error_message = 4;
-}
-
-message CaseResult {
-  string case_id = 1;
-  Verdict verdict = 2;
-  uint64 elapsed_ms = 3;
-  uint64 peak_memory_bytes = 4;
+  string error_message = 3;
 }
 
 enum Verdict {
