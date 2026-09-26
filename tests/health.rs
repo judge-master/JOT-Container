@@ -7,13 +7,16 @@ use tonic_health::pb::{
 
 #[tokio::test]
 async fn health_check_reports_serving() {
+
+    // 현재 가용가능한 포트 확인
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
     drop(listener);
 
+    // 빌드된 바이너리를 실행하여 gRPC 서버를 시작하고, healthcheck 요청을 보내서 응답을 확인
     let mut command = tokio::process::Command::new(env!("CARGO_BIN_EXE_JOT-Container"));
     command
-        .env("JOT_GRPC_ADDR", address.to_string())
+        .env("GRPC_ADDR", address.to_string())
         .kill_on_drop(true);
     let mut server = command.spawn().unwrap();
 
