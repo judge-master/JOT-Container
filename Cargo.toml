@@ -2,6 +2,8 @@
 name = "JOT-Container"
 version = "0.1.0"
 edition = "2024"
-build = "build.rs"
 
 [dependencies]
+tokio = { version = "1", features = ["macros", "process", "rt-multi-thread", "signal", "time"] }
+tonic = "0.14.6"
+tonic-health = "0.14.6"

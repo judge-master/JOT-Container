@@ -12,7 +12,7 @@ ARG COMPILER_GO_VERSION=1.26.8-r0
 FROM rust:${RUST_VERSION}-alpine AS build
 
 WORKDIR /app
-COPY Cargo.toml Cargo.lock build.rs ./
+COPY Cargo.toml Cargo.lock ./
 
 RUN mkdir src && printf 'fn main() {}\n' > src/main.rs \
     && cargo build --release --locked
@@ -33,4 +33,5 @@ RUN apk add --no-cache go=${COMPILER_GO_VERSION}
 
 COPY --from=build /app/target/release/JOT-Container /usr/local/bin/JOT-Container
 
+EXPOSE 50051
 CMD ["JOT-Container"]
