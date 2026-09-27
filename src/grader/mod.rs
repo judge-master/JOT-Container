@@ -65,7 +65,7 @@ impl<C: Checker, E: Executor> Grader<C, E> {
                     grade_result.verdict = Verdict::RuntimeError(reason);
                     return grade_result;
                 }
-                Err(ExecuteError::CompileError { message }) => {
+                Err(ExecuteError::CompilationError { message }) => {
                     grade_result.verdict = Verdict::CompilationError(message);
                     return grade_result;
                 }

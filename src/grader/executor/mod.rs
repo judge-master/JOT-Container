@@ -10,7 +10,7 @@ pub enum ExecuteError {
     RuntimeError {
         reason: Option<String>,
     },
-    CompileError {
+    CompilationError {
         message: Option<String>,
     }
 }
