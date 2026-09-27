@@ -1,4 +1,3 @@
-pub mod aplusb_executor;
 pub mod wasm_executor;
 
 use async_trait::async_trait;
@@ -25,3 +24,6 @@ pub struct ExecuteResult {
 pub trait Executor: Send {
     async fn execute(&mut self, input: &str, memory_limit: u64, time_limit: u64) -> Result<ExecuteResult, ExecuteError>;
 }
+
+#[cfg(test)]
+pub(crate) mod aplusb_executor;
