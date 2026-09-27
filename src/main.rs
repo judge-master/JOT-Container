@@ -1,6 +1,6 @@
 mod config;
 mod grpc;
-mod judger;
+mod grader;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
