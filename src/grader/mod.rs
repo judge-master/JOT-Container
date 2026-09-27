@@ -1,10 +1,23 @@
 mod checker;
 mod executor;
-mod problem;
 
 use checker::Checker;
 use executor::{Executor, ExecuteError, ExecuteResult};
-use problem::Problem;
+use std::sync::Arc;
+
+// Arc is used for efficient caching between multiple threads
+pub struct Testcase {
+    pub input: Arc<str>,
+    pub answer: Arc<str>,
+}
+
+pub struct Problem {
+    pub id: String,
+    pub memory_limit: u64,
+    pub instruction_limit: u64,
+    pub tests: Vec<Testcase>,
+}
+
 
 pub struct Grader<C: Checker, E: Executor> {
     pub checker: C,
@@ -88,11 +101,11 @@ async fn test_grader() {
     let problem = Problem {
         id: "1".into(),
         tests: vec![
-            problem::Testcase {
+            Testcase {
                 input: Arc::from("1 2"),
                 answer: Arc::from("3"),
             },
-            problem::Testcase {
+            Testcase {
                 input: Arc::from("100 200"),
                 answer: Arc::from("300"),
             },
@@ -116,11 +129,11 @@ async fn test_grader_instruction_limit() {
     let problem = Problem {
         id: "1".into(),
         tests: vec![
-            problem::Testcase {
+            Testcase {
                 input: Arc::from("1 2"),
                 answer: Arc::from("3"),
             },
-            problem::Testcase {
+            Testcase {
                 input: Arc::from("100 200"),
                 answer: Arc::from("300"),
             },
