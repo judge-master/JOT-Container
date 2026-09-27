@@ -2,6 +2,8 @@ mod checker;
 mod executor;
 mod problem;
 
+use std::sync::Arc;
+
 use checker::Checker;
 use executor::{Executor, ExecuteError, ExecuteResult};
 use problem::Problem;
@@ -42,7 +44,7 @@ impl<C: Checker, E: Executor> Grader<C, E> {
         };
 
         for (idx, test) in problem.tests.iter().enumerate() {
-            let res = executor.execute(&test.input, problem.memory_limit, problem.time_limit).await;
+            let res = executor.execute(&test.input, problem.memory_limit, problem.instruction_limit).await;
             match res {
                 Ok(ExecuteResult {output, memory_used, instruction_count}) => {
                     grade_result.memory_used = grade_result.memory_used.max(memory_used);
@@ -75,4 +77,31 @@ impl<C: Checker, E: Executor> Grader<C, E> {
         grade_result.verdict = Verdict::Accepted;
         grade_result
     }
+}
+
+#[tokio::test]
+async fn test_grader() {
+    use checker::lcmp_checker::LcmpChecker;
+    use executor::aplusb_executor::APlusBExecutor;
+
+    let problem = Problem {
+        id: "1".into(),
+        tests: vec![
+            problem::Testcase {
+                input: Arc::from("1 2"),
+                answer: Arc::from("3"),
+            },
+            problem::Testcase {
+                input: Arc::from("100 200"),
+                answer: Arc::from("300"),
+            },
+        ],
+        memory_limit: 1024 * 1024,
+        instruction_limit: 100000000,
+    };
+
+    let mut grader = Grader::new(LcmpChecker, APlusBExecutor);
+    let result = grader.grade(problem).await;
+
+    assert_eq!(matches!(result.verdict, Verdict::Accepted), true);
 }
