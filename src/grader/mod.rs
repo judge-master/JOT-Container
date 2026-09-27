@@ -8,11 +8,14 @@ use checker::Checker;
 use executor::{Executor, ExecuteError, ExecuteResult};
 use problem::Problem;
 
+use crate::grader::Verdict::TimeLimitExceeded;
+
 pub struct Grader<C: Checker, E: Executor> {
     pub checker: C,
     pub executor: E,
 }
 
+#[derive(Debug)]
 pub enum Verdict {
     Accepted,
     WrongAnswer,
@@ -23,6 +26,7 @@ pub enum Verdict {
     BuildArtifactLimitExceeded(usize),
     SystemError(Option<String>),
 }
+#[derive(Debug)]
 pub struct GradeResult {
     pub verdict: Verdict,
     pub memory_used: usize,
@@ -104,4 +108,35 @@ async fn test_grader() {
     let result = grader.grade(problem).await;
 
     assert_eq!(matches!(result.verdict, Verdict::Accepted), true);
+}
+
+#[tokio::test]
+async fn test_grader_instruction_limit() {
+    use checker::lcmp_checker::LcmpChecker;
+    use executor::aplusb_executor::APlusBExecutor;
+
+    let problem = Problem {
+        id: "1".into(),
+        tests: vec![
+            problem::Testcase {
+                input: Arc::from("1 2"),
+                answer: Arc::from("3"),
+            },
+            problem::Testcase {
+                input: Arc::from("100 200"),
+                answer: Arc::from("300"),
+            },
+        ],
+        memory_limit: 1024 * 1024,
+        instruction_limit: 1,
+    };
+
+    let mut grader = Grader::new(LcmpChecker, APlusBExecutor);
+    let result = grader.grade(problem).await;
+
+    if let TimeLimitExceeded(_) = result.verdict {
+        return;
+    } else {
+        panic!("Expected TimeLimitExceeded, got {:?}", result.verdict);
+    }
 }
