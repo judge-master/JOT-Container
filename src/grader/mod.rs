@@ -2,13 +2,9 @@ mod checker;
 mod executor;
 mod problem;
 
-use std::sync::Arc;
-
 use checker::Checker;
 use executor::{Executor, ExecuteError, ExecuteResult};
 use problem::Problem;
-
-use crate::grader::Verdict::TimeLimitExceeded;
 
 pub struct Grader<C: Checker, E: Executor> {
     pub checker: C,
@@ -87,6 +83,7 @@ impl<C: Checker, E: Executor> Grader<C, E> {
 async fn test_grader() {
     use checker::lcmp_checker::LcmpChecker;
     use executor::aplusb_executor::APlusBExecutor;
+    use std::sync::Arc;
 
     let problem = Problem {
         id: "1".into(),
@@ -114,6 +111,7 @@ async fn test_grader() {
 async fn test_grader_instruction_limit() {
     use checker::lcmp_checker::LcmpChecker;
     use executor::aplusb_executor::APlusBExecutor;
+    use std::sync::Arc;
 
     let problem = Problem {
         id: "1".into(),
@@ -134,7 +132,7 @@ async fn test_grader_instruction_limit() {
     let mut grader = Grader::new(LcmpChecker, APlusBExecutor);
     let result = grader.grade(problem).await;
 
-    if let TimeLimitExceeded(_) = result.verdict {
+    if let Verdict::TimeLimitExceeded(_) = result.verdict {
         return;
     } else {
         panic!("Expected TimeLimitExceeded, got {:?}", result.verdict);

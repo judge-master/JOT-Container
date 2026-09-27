@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use async_trait::async_trait;
 use super::{Executor, ExecuteError, ExecuteResult};
 use wasmtime::{Engine, Linker, Module, Store, StoreLimits, StoreLimitsBuilder, Trap};
-use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView, p1::{WasiP1Ctx, types::Error}, p2::pipe::{MemoryInputPipe, MemoryOutputPipe}};
+use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView, p1::{WasiP1Ctx}, p2::pipe::{MemoryInputPipe, MemoryOutputPipe}};
 use std::sync::Arc;
 
 pub struct WasmExecutor {
