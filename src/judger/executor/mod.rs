@@ -1,4 +1,5 @@
-mod aplusb_executor;
+pub mod aplusb_executor;
+pub mod wasm_executor;
 
 use async_trait::async_trait;
 
