@@ -1,5 +1,5 @@
-mod checker;
-mod executor;
+pub mod checker;
+pub mod executor;
 
 use checker::Checker;
 use executor::{Executor, ExecuteError, ExecuteResult};
