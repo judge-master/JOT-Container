@@ -16,6 +16,13 @@ impl APlusBExecutor {
 #[async_trait]
 impl Executor for APlusBExecutor {
     async fn execute(&mut self, input: &str, memory_limit: usize, time_limit: u64) -> Result<ExecuteResult, ExecuteError> {
+        if time_limit < 100 {
+            return Err(ExecuteError::TimeLimitExceeded(time_limit));
+        }
+        if memory_limit < 1024 {
+            return Err(ExecuteError::MemoryLimitExceeded(memory_limit));
+        }
+
         let sp = input.split(' ')
             .map(|x| x.trim().parse::<i32>().unwrap_or(0))
             .collect::<Vec<_>>();
