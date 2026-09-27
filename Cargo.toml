@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+async-trait = "0.1.92"
 tokio = { version = "1", features = ["macros", "process", "rt-multi-thread", "signal", "time"] }
 tonic = "0.14.6"
 tonic-health = "0.14.6"
+wasmtime = "49.0.1"
+wasmtime-wasi = { version = "49.0.1", features = ["p1"] }
