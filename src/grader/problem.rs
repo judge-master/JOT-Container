@@ -8,7 +8,7 @@ pub struct Testcase {
 
 pub struct Problem {
     pub id: String,
-    pub memory_limit: usize,
+    pub memory_limit: u64,
     pub instruction_limit: u64,
     pub tests: Vec<Testcase>,
 }

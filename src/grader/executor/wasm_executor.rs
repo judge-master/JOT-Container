@@ -31,11 +31,11 @@ impl WasiView for MyState {
 
 #[async_trait]
 impl Executor for WasmExecutor {
-    async fn execute(&mut self, input: &str, memory_limit: usize, time_limit: u64) -> Result<ExecuteResult, ExecuteError> {
+    async fn execute(&mut self, input: &str, memory_limit: u64, time_limit: u64) -> Result<ExecuteResult, ExecuteError> {
         let engine = self.engine.clone();
 
         let limit = StoreLimitsBuilder::new()
-                .memory_size(memory_limit)
+                .memory_size(memory_limit as usize)
                 .memories(1)
                 .instances(1)
                 .build();
@@ -85,7 +85,7 @@ impl Executor for WasmExecutor {
             Ok(()) => Ok(ExecuteResult {
                 output: String::from_utf8_lossy(memory_output.contents().iter().as_slice()).into(),
                 memory_used: instance.get_memory(&mut store, "memory")
-                    .map(|m| m.size(&store) * m.page_size(&store)).unwrap_or(0) as usize,
+                    .map(|m| m.size(&store) * m.page_size(&store)).unwrap_or(0),
                 instruction_count: initial_fuel - store.get_fuel().unwrap()
             }),
             Err(e) => {

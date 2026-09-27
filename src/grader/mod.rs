@@ -18,14 +18,14 @@ pub enum Verdict {
     CompilationError(Option<String>),
     RuntimeError(Option<String>),
     TimeLimitExceeded(u64),
-    MemoryLimitExceeded(usize),
-    BuildArtifactLimitExceeded(usize),
+    MemoryLimitExceeded(u64),
+    BuildArtifactLimitExceeded(u64),
     SystemError(Option<String>),
 }
 #[derive(Debug)]
 pub struct GradeResult {
     pub verdict: Verdict,
-    pub memory_used: usize,
+    pub memory_used: u64,
     pub instruction_count: u64,
 }
 

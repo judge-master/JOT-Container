@@ -15,7 +15,7 @@ impl APlusBExecutor {
 
 #[async_trait]
 impl Executor for APlusBExecutor {
-    async fn execute(&mut self, input: &str, memory_limit: usize, time_limit: u64) -> Result<ExecuteResult, ExecuteError> {
+    async fn execute(&mut self, input: &str, memory_limit: u64, time_limit: u64) -> Result<ExecuteResult, ExecuteError> {
         if time_limit < 100 {
             return Err(ExecuteError::TimeLimitExceeded(time_limit));
         }
