@@ -12,11 +12,11 @@ pub struct SimpleExecutor {
 }
 
 impl SimpleExecutor {
-    fn new<T>(command: T, args: Vec<String>) -> Self
-    where String: From<T> {
+    fn new<S, I>(command: S, args: I) -> Self
+    where S: Into<String>, I: IntoIterator<Item = S> {
         Self {
             command: command.into(),
-            args,
+            args: args.into_iter().map(Into::into).collect(),
         }
     }
 }
