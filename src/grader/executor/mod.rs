@@ -38,7 +38,7 @@ pub trait StreamExecutor: Send {
 }
 
 #[async_trait]
-impl<T> Executor for T where T: StreamExecutor + Send {
+impl<T> Executor for T where T: StreamExecutor {
     async fn execute(&mut self, input: &str, memory_limit: u64, time_limit: u64) -> Result<ExecuteResult, ExecuteError> {
         let (mut writer, reader) = tokio::io::duplex(1024);
         let input = String::from(input); // It has copy overhead, someday it has to be improved...
