@@ -8,13 +8,15 @@ use tokio::process::Command;
 
 pub struct SimpleExecutor {
     command: String,
+    args: Vec<String>,
 }
 
 impl SimpleExecutor {
-    fn new<T>(command: T) -> Self
+    fn new<T>(command: T, args: Vec<String>) -> Self
     where String: From<T> {
         Self {
             command: command.into(),
+            args,
         }
     }
 }
@@ -24,6 +26,7 @@ impl StreamExecutor for SimpleExecutor {
     // todo: implement memory limit and time limit
     async fn execute(&mut self, mut input: Box<dyn AsyncRead + Send + Sync + Unpin + 'static>, memory_limit: u64, time_limit: u64) -> Result<ExecuteResult, ExecuteError> {
         let Ok(mut child) = Command::new(&self.command)
+            .args(&self.args)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .spawn() else {
