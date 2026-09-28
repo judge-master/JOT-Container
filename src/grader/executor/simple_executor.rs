@@ -12,7 +12,7 @@ pub struct SimpleExecutor {
 }
 
 impl SimpleExecutor {
-    fn new<S, I>(command: S, args: I) -> Self
+    pub fn new<S, I>(command: S, args: I) -> Self
     where S: Into<String>, I: IntoIterator<Item = S> {
         Self {
             command: command.into(),
