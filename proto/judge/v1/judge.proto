@@ -3,10 +3,10 @@ syntax = "proto3";
 package jot.judge.v1;
 
 service JudgeService {
-  rpc Grade(GradeRequest) returns (stream GradeEvent);
+  rpc Judge(JudgeRequest) returns (stream JudgeEvent);
 }
 
-message GradeRequest {
+message JudgeRequest {
   // Set by the backend to correlate the request, stream, and logs.
   int64 request_id = 1;
   Language language = 2;
@@ -29,38 +29,42 @@ message ResourceLimits {
 
 // Output
 
-message GradeEvent {
+message JudgeEvent {
   int64 request_id = 1;
 
   oneof payload {
-    GradeProgress progress = 2;
-    GradeResult result = 3;
+    JudgeProgress progress = 2;
+    JudgeResult result = 3;
   }
 }
 
-message GradeProgress {
-  GradePhase phase = 1;
+message JudgeProgress {
+  JudgePhase phase = 1;
   uint32 completed_cases = 2;
   uint32 total_cases = 3;
 }
 
-enum GradePhase {
-  GRADE_PHASE_UNSPECIFIED = 0;
-  GRADE_PHASE_RECEIVED = 1;
-  GRADE_PHASE_COMPILING = 2;
-  GRADE_PHASE_FETCHING_CASES = 3;
-  GRADE_PHASE_RUNNING = 4;
-  GRADE_PHASE_VALIDATING = 5;
+enum JudgePhase {
+  JUDGE_PHASE_UNSPECIFIED = 0;
+  JUDGE_PHASE_RECEIVED = 1;
+  JUDGE_PHASE_COMPILING = 2;
+  JUDGE_PHASE_FETCHING_CASES = 3;
+  JUDGE_PHASE_RUNNING = 4;
+  JUDGE_PHASE_VALIDATING = 5;
 }
 
-message GradeResult {
+message JudgeResult {
   Verdict verdict = 1;
-  uint64 max_instruction_count = 2;
-  uint64 max_memory_bytes = 3;
-  // Populated for a compilation failure; capped by the server. May be blank if no error occurred.
+
+  // Present only for VERDICT_ACCEPTED. Limit-exceeded results carry only the verdict.
+  optional uint64 max_instruction_count = 2;
+  optional uint64 max_memory_bytes = 3;
+
+  // Populated for a compilation failure; capped by the server. May be blank if no error or warning occurred.
   string compiler_diagnostics = 4;
-  // Short explanation for a grading system failure, without secrets. May be blank if no error occurred.
-  string error_message = 5;
+
+  // Present only for VERDICT_SYSTEM_ERROR.
+  optional string error_message = 5;
 }
 
 enum Verdict {
