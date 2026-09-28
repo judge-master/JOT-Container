@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  cargo-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --locked
+
+  container-build:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - run: buildah bud --file Containerfile --tag app:ci .
+
+  publish-image:
+    if: github.event_name == 'push'
+    needs: cargo-test
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build image
+        run: |
+          buildah bud \
+            --file Containerfile \
+            --tag app:ci .
+
+      - name: Publish to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          printf '%s' "$GHCR_TOKEN" |
+            buildah login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          buildah push app:ci "docker://$image:$GITHUB_SHA"
+          buildah push app:ci "docker://$image:main"
