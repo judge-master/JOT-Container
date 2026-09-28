@@ -1,4 +1,5 @@
 pub mod wasm_executor;
+pub mod simple_executor;
 
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncWriteExt};
