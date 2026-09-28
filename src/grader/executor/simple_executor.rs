@@ -12,8 +12,8 @@ pub struct SimpleExecutor {
 }
 
 impl SimpleExecutor {
-    pub fn new<S, I>(command: S, args: I) -> Self
-    where S: Into<String>, I: IntoIterator<Item = S> {
+    pub fn new<S, I, S2>(command: S, args: I) -> Self
+    where S: Into<String>, I: IntoIterator<Item = S2>, S2: Into<String> {
         Self {
             command: command.into(),
             args: args.into_iter().map(Into::into).collect(),
