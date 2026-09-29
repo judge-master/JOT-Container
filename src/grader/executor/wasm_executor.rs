@@ -1,9 +1,19 @@
 use std::path::{Path, PathBuf};
 use async_trait::async_trait;
 use super::{Executor, ExecuteError, ExecuteResult};
-use wasmtime::{Engine, Linker, Module, Store, StoreLimits, StoreLimitsBuilder, Trap};
+use wasmtime::{Config, Engine, Linker, Module, Store, StoreLimits, StoreLimitsBuilder, Trap};
 use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView, p1::{WasiP1Ctx}, p2::pipe::{MemoryInputPipe, MemoryOutputPipe}};
 use std::sync::Arc;
+use lazy_static::lazy_static;
+
+lazy_static! {
+    static ref WASMTIME_ENGINE: Engine = Engine::new(Config::new()
+        .max_wasm_stack(1048576)
+        .wasm_threads(false)
+        .consume_fuel(true)
+        .wasm_exceptions(true)
+    ).expect("Failed to initialize Wasmtime engine");
+}
 
 pub struct WasmExecutor {
     engine: Engine,
@@ -11,9 +21,9 @@ pub struct WasmExecutor {
 }
 
 impl WasmExecutor {
-    pub fn new(engine: Engine, path: &Path) -> Self {
+    pub fn new(path: &Path) -> Self {
         Self {
-            engine,
+            engine: WASMTIME_ENGINE.clone(),
             path: path.into()
         }
     }
