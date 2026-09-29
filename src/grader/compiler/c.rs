@@ -31,7 +31,6 @@ impl Compiler for CCompiler {
 }
 
 #[tokio::test]
-#[ignore = "Requires Clang"]
 async fn test_c_compiler() {
     dotenvy::dotenv().ok();
 

@@ -31,7 +31,6 @@ impl Compiler for CppCompiler {
 }
 
 #[tokio::test]
-#[ignore = "Requires Clang++"]
 async fn test_cpp_compiler() {
     dotenvy::dotenv().ok();
 
