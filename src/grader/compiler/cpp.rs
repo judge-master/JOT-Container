@@ -2,11 +2,12 @@ use async_trait::async_trait;
 use super::Compiler;
 use std::path::PathBuf;
 use super::compile_executor::{CompileExecutor, simple_executor::SimpleExecutor};
+use crate::grader::executor::{Executor, wasm_executor::WasmExecutor};
 
 pub struct CppCompiler;
 #[async_trait]
 impl Compiler for CppCompiler {
-    async fn compile(&mut self, source: &str) -> Result<(PathBuf, String), String> {
+    async fn compile(&mut self, source: &str) -> Result<(Box<dyn Executor>, String), String> {
         let binary_path = self.create_binary_path();
         let args = ["-o", binary_path.to_str().unwrap_or(""), "-std=c++17", "-O2", "-Wall", "-x", "c++", "-"];
         let additional_flags = std::env::var("CLANGPP_ADDITIONAL_FLAGS").unwrap_or("".into());
@@ -20,7 +21,8 @@ impl Compiler for CppCompiler {
         );
         let result = executor.execute(source, 0, 0).await.map_err(|e| format!("Compilation failed: {:?}", e))?;
         if binary_path.try_exists().unwrap_or(false) {
-            Ok((binary_path, result.output))
+            let executor = Box::new(WasmExecutor::new(&binary_path));
+            Ok((executor, result.output))
         }
         else {
             Err(result.output)
@@ -29,6 +31,7 @@ impl Compiler for CppCompiler {
 }
 
 #[tokio::test]
+#[ignore = "Requires Clang++"]
 async fn test_cpp_compiler() {
     dotenvy::dotenv().ok();
 
@@ -43,9 +46,8 @@ async fn test_cpp_compiler() {
     }
     "#;
     match compiler.compile(source).await {
-        Ok((binary_path, output)) => {
-            println!("Compilation succeeded. Binary path: {:?}, Output: {}", binary_path, output);
-            assert!(binary_path.try_exists().unwrap_or(false));
+        Ok((executor, output)) => {
+            println!("Compilation succeeded. Output: {}", output);
         },
         Err(err) => {
             println!("Compilation failed with error: {}", err);

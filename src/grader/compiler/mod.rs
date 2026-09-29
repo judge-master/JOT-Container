@@ -5,6 +5,7 @@ mod compile_executor;
 
 use std::{path::{Path, PathBuf}, sync::atomic::{AtomicU64, Ordering}};
 use async_trait::async_trait;
+use crate::grader::executor::Executor;
 
 static BINARY_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -18,5 +19,5 @@ pub trait Compiler {
     }
 
     // returns the path to the compiled binary if successful, or an error message if failed
-    async fn compile(&mut self, source: &str) -> Result<(PathBuf, String), String>;
+    async fn compile(&mut self, source: &str) -> Result<(Box<dyn Executor>, String), String>;
 }
