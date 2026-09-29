@@ -1,6 +1,8 @@
 pub mod c;
 pub mod cpp;
 
+mod compile_executor;
+
 use std::{path::{Path, PathBuf}, sync::atomic::{AtomicU64, Ordering}};
 use async_trait::async_trait;
 

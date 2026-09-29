@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use super::Compiler;
 use std::path::PathBuf;
-use crate::grader::executor::{Executor, simple_executor::SimpleExecutor};
+use super::compile_executor::{CompileExecutor, simple_executor::SimpleExecutor};
 
 pub struct CppCompiler;
 #[async_trait]

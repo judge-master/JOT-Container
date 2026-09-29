@@ -2,7 +2,7 @@
 // It can be used for implementing other executors
 
 use async_trait::async_trait;
-use super::{StreamExecutor, ExecuteResult, ExecuteError};
+use super::{StreamExecutor, CompileExecuteError, CompileExecuteResult};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
 
@@ -24,13 +24,18 @@ impl SimpleExecutor {
 #[async_trait]
 impl StreamExecutor for SimpleExecutor {
     // todo: implement memory limit and time limit
-    async fn execute(&mut self, mut input: Box<dyn AsyncRead + Send + Sync + Unpin + 'static>, memory_limit: u64, time_limit: u64) -> Result<ExecuteResult, ExecuteError> {
+    async fn execute(
+        &mut self, 
+        mut input: Box<dyn AsyncRead + Send + Sync + Unpin + 'static>, 
+        memory_limit: u64, 
+        time_limit: u64
+    ) -> Result<CompileExecuteResult, CompileExecuteError> {
         let Ok(mut child) = Command::new(&self.command)
             .args(&self.args)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .spawn() else {
-                return Err(ExecuteError::RuntimeError { reason: Some("Failed to execute".into()) });
+                return Err(CompileExecuteError::RuntimeError { reason: Some("Failed to execute".into()) });
             };
 
         let mut stdin = child.stdin.take().unwrap();
@@ -43,13 +48,11 @@ impl StreamExecutor for SimpleExecutor {
 
         let mut buf = Vec::new();
         if let Err(_) = stdout.read_to_end(&mut buf).await {
-            return Err(ExecuteError::RuntimeError { reason: Some("Failed to read the output".into()) });
+            return Err(CompileExecuteError::RuntimeError { reason: Some("Failed to read the output".into()) });
         }
 
-        Ok(ExecuteResult {
+        Ok(CompileExecuteResult {
             output: String::from_utf8_lossy(&buf).into(),
-            memory_used: 0,
-            instruction_count: 0,
         })
     }
 }
