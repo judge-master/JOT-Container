@@ -1,5 +1,4 @@
-// SimpleCompileExecutor: a simple executor which execute a command without any security sandbox
-// It can be used for implementing compile executors
+// LocalCompileExecutor: Executing compile with local command with out sandbox
 
 
 use async_trait::async_trait;
