@@ -150,3 +150,39 @@ impl Executor for WasmExecutor {
         }
     }
 }
+
+#[tokio::test]
+async fn test_wasm() {
+    let mut executor = WasmExecutor::new(
+        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/aplusb.wasm")).to_vec(),
+    );
+    let res = executor
+        .execute("1 2", 1048576, 100000)
+        .await
+        .expect("Runtime error");
+    assert_eq!(res.output.trim(), "3");
+}
+#[tokio::test]
+#[should_panic]
+async fn test_wasm_tle() {
+    let mut executor = WasmExecutor::new(
+        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/aplusb.wasm")).to_vec(),
+    );
+    let res = executor
+        .execute("1 2", 1048576, 1000)
+        .await
+        .expect("Runtime error");
+    assert_eq!(res.output.trim(), "3");
+}
+#[tokio::test]
+#[should_panic]
+async fn test_wasm_mle() {
+    let mut executor = WasmExecutor::new(
+        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/aplusb.wasm")).to_vec(),
+    );
+    let res = executor
+        .execute("1 2", 1000, 100000)
+        .await
+        .expect("Runtime error");
+    assert_eq!(res.output.trim(), "3");
+}
