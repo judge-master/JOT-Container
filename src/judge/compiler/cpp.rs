@@ -36,8 +36,6 @@ impl Compiler for CppCompiler {
 
 #[tokio::test]
 async fn test_cpp_compiler() {
-    dotenvy::dotenv().ok();
-
     let mut compiler = CppCompiler;
     let source = r#"
     #include <iostream>
