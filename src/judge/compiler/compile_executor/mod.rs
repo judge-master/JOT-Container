@@ -3,7 +3,7 @@ pub mod local;
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncWriteExt};
 
-use crate::grader::compiler::CompilerResourceLimits;
+use crate::judge::compiler::CompilerResourceLimits;
 
 #[derive(Debug)]
 pub enum CompileExecuteError {

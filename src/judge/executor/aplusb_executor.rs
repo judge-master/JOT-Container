@@ -1,7 +1,7 @@
 // APlusBExecutor: a simple implementation example of Executor
 // It returns the sum of given two integers
 
-use crate::grader::executor::{ExecuteError, ExecuteResult};
+use crate::judge::executor::{ExecuteError, ExecuteResult};
 use super::Executor;
 use async_trait::async_trait;
 

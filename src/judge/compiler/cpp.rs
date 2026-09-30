@@ -1,21 +1,22 @@
 use async_trait::async_trait;
 use super::Compiler;
 use super::compile_executor::{CompileExecutor, local::LocalCompileExecutor};
-use crate::grader::compiler::{CompilerResult, CompilerResourceLimits};
-use crate::grader::executor::{wasm_executor::WasmExecutor};
+use crate::judge::compiler::{CompilerResourceLimits, CompilerResult};
+use crate::judge::executor::{wasm_executor::WasmExecutor};
 
-pub struct CCompiler;
+
+pub struct CppCompiler;
 #[async_trait]
-impl Compiler for CCompiler {
-    async fn compile(&mut self, source: &str, limits: CompilerResourceLimits) -> Result<CompilerResult, String> {
-        let args = ["-o", "-", "-std=c11", "-O2", "-Wall", "-x", "c", "-"];
-        let additional_flags = std::env::var("CLANG_ADDITIONAL_FLAGS").unwrap_or("".into());
+impl Compiler for CppCompiler {
+    async fn compile(&mut self, source: &str, limits:CompilerResourceLimits) -> Result<(CompilerResult), String> {
+        let args = ["-o", "-", "-std=c++17", "-O2", "-Wall", "-x", "c++", "-"];
+        let additional_flags = std::env::var("CLANGPP_ADDITIONAL_FLAGS").unwrap_or("".into());
         let additional_flags = additional_flags
             .split_whitespace()
             .filter(|s| !s.is_empty());
 
         let mut compile_executor = LocalCompileExecutor::new(
-            std::env::var("CLANG_PATH").unwrap_or("clang".into()),
+            std::env::var("CLANGPP_PATH").unwrap_or("clang++".into()),
             args.into_iter().chain(additional_flags)
         );
 
@@ -34,16 +35,16 @@ impl Compiler for CCompiler {
 }
 
 #[tokio::test]
-async fn test_c_compiler() {
+async fn test_cpp_compiler() {
     dotenvy::dotenv().ok();
 
-    let mut compiler = CCompiler;
+    let mut compiler = CppCompiler;
     let source = r#"
-    #include <stdio.h>
+    #include <iostream>
     int main() {
         int a, b;
-        scanf("%d %d", &a, &b);
-        printf("%d\n", a + b);
+        std::cin >> a >> b;
+        std::cout << a + b << std::endl;
         return 0;
     }
     "#;
@@ -53,6 +54,7 @@ async fn test_c_compiler() {
         time_limit_ms: 10000, // 10 seconds
         build_artifact_size_limit_byte: 10 * 1024 * 1024, // 10 MB
     };
+
     match compiler.compile(source, limits).await {
         Ok(compiler_result) => {
             println!("Compilation succeeded. Diagnostics: {}", compiler_result.diagnostics);

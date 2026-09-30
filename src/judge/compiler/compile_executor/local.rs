@@ -5,7 +5,7 @@
 use async_trait::async_trait;
 use tokio::time::timeout;
 use super::{CompileExecutor, CompileExecuteError, CompileExecuteResult};
-use crate::grader::compiler::CompilerResourceLimits;
+use crate::judge::compiler::CompilerResourceLimits;
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::Command;
 

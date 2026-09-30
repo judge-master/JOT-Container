@@ -4,7 +4,7 @@ pub mod cpp;
 mod compile_executor;
 
 use async_trait::async_trait;
-use crate::grader::executor::Executor;
+use crate::judge::executor::Executor;
 
 pub struct CompilerResult {
     pub executor: Box<dyn Executor>,
