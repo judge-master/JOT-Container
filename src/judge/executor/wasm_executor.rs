@@ -1,20 +1,29 @@
-use std::path::{Path, PathBuf};
 use async_trait::async_trait;
 use super::{Executor, ExecuteError, ExecuteResult};
-use wasmtime::{Engine, Linker, Module, Store, StoreLimits, StoreLimitsBuilder, Trap};
+use wasmtime::{Config, Engine, Linker, Module, Store, StoreLimits, StoreLimitsBuilder, Trap};
 use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView, p1::{WasiP1Ctx}, p2::pipe::{MemoryInputPipe, MemoryOutputPipe}};
 use std::sync::Arc;
+use lazy_static::lazy_static;
+
+lazy_static! {
+    static ref WASMTIME_ENGINE: Engine = Engine::new(Config::new()
+        .max_wasm_stack(1048576)
+        .wasm_threads(false)
+        .consume_fuel(true)
+        .wasm_exceptions(true)
+    ).expect("Failed to initialize Wasmtime engine");
+}
 
 pub struct WasmExecutor {
     engine: Engine,
-    path: PathBuf,
+    wasm: Vec<u8>,
 }
 
 impl WasmExecutor {
-    pub fn new(engine: Engine, path: &Path) -> Self {
+    pub fn new(wasm: Vec<u8>) -> Self {
         Self {
-            engine,
-            path: path.into()
+            engine: WASMTIME_ENGINE.clone(),
+            wasm,
         }
     }
 }
@@ -65,7 +74,7 @@ impl Executor for WasmExecutor {
 
         store.set_fuel(initial_fuel).map_err(|_| ExecuteError::RuntimeError { reason: Some("set_fuel() failed".into()) })?;
 
-        let module = Module::from_file(&engine, &self.path)
+        let module = Module::new(&engine, &self.wasm)
             .map_err(|_| ExecuteError::RuntimeError { reason: Some("Failed to load wasm binary".into()) })?;
         linker.module(&mut store, "", &module)
             .map_err(|_| ExecuteError::RuntimeError { reason: Some("linker.module() failed".into()) })?;

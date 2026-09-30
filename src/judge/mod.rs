@@ -1,5 +1,6 @@
 pub mod checker;
 pub mod executor;
+pub mod compiler;
 
 use checker::Checker;
 use executor::{Executor, ExecuteError, ExecuteResult};
