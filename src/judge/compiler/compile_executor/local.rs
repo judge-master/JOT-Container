@@ -1,7 +1,8 @@
 // LocalCompileExecutor: Executing compile with local command with out sandbox
 
-use super::{CompileExecuteError, CompileExecuteResult, CompileExecutor};
-use crate::judge::compiler::CompilerResourceLimits;
+use super::CompileExecutor;
+use crate::judge::compiler::compile_executor::CompileExecuteResult;
+use crate::judge::compiler::{CompilerError, CompilerResourceLimits};
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::Command;
@@ -33,7 +34,7 @@ impl CompileExecutor for LocalCompileExecutor {
         &mut self,
         mut input: Box<dyn AsyncRead + Send + Sync + Unpin + 'static>,
         limits: CompilerResourceLimits,
-    ) -> Result<CompileExecuteResult, CompileExecuteError> {
+    ) -> Result<CompileExecuteResult, CompilerError> {
         let mut child = Command::new(&self.command)
             .args(&self.args)
             .stdin(std::process::Stdio::piped())
@@ -41,23 +42,20 @@ impl CompileExecutor for LocalCompileExecutor {
             .stderr(std::process::Stdio::piped())
             .kill_on_drop(true)
             .spawn()
-            .map_err(|_| CompileExecuteError::RuntimeError("Failed to spawn process".into()))?;
+            .map_err(|_| CompilerError::RuntimeError("Failed to spawn process".into()))?;
 
-        let mut stdin = child.stdin.take().ok_or(CompileExecuteError::RuntimeError(
-            "Failed to open stdin".into(),
-        ))?;
+        let mut stdin = child
+            .stdin
+            .take()
+            .ok_or(CompilerError::RuntimeError("Failed to open stdin".into()))?;
         let mut stdout = child
             .stdout
             .take()
-            .ok_or(CompileExecuteError::RuntimeError(
-                "Failed to open stdout".into(),
-            ))?;
+            .ok_or(CompilerError::RuntimeError("Failed to open stdout".into()))?;
         let mut stderr = child
             .stderr
             .take()
-            .ok_or(CompileExecuteError::RuntimeError(
-                "Failed to open stderr".into(),
-            ))?;
+            .ok_or(CompilerError::RuntimeError("Failed to open stderr".into()))?;
 
         let input_handle = tokio::spawn(async move {
             tokio::io::copy(&mut input, &mut stdin).await.unwrap_or(0);
@@ -67,20 +65,21 @@ impl CompileExecutor for LocalCompileExecutor {
             let mut output = Vec::new();
             let mut output_chunk = [0u8; 8192];
             loop {
-                let n = stdout.read(&mut output_chunk).await.map_err(|_| {
-                    CompileExecuteError::RuntimeError("Failed to read stdout".into())
-                })?;
+                let n = stdout
+                    .read(&mut output_chunk)
+                    .await
+                    .map_err(|_| CompilerError::RuntimeError("Failed to read stdout".into()))?;
                 if n == 0 {
                     break;
                 }
                 if output.len() + n > limits.build_artifact_size_limit_byte as usize {
-                    return Err(CompileExecuteError::BuildArtifactSizeLimitExceeded(
+                    return Err(CompilerError::BuildArtifactSizeLimitExceeded(
                         limits.build_artifact_size_limit_byte,
                     ));
                 }
                 output.extend_from_slice(&output_chunk[..n]);
             }
-            Ok::<Vec<u8>, CompileExecuteError>(output)
+            Ok::<Vec<u8>, CompilerError>(output)
         });
 
         let mut stderr_handle = tokio::spawn(async move {
@@ -88,7 +87,7 @@ impl CompileExecutor for LocalCompileExecutor {
             tokio::io::copy(&mut stderr, &mut diagnostics)
                 .await
                 .unwrap_or(0);
-            Ok::<Vec<u8>, CompileExecuteError>(diagnostics)
+            Ok::<Vec<u8>, CompilerError>(diagnostics)
         });
 
         let mut stdout_joined = false;
@@ -103,7 +102,7 @@ impl CompileExecutor for LocalCompileExecutor {
                     Ok(Ok(output)) => output,
                     Ok(Err(err)) => return Err(err),
                     Err(_) => {
-                        return Err(CompileExecuteError::RuntimeError("stdout 작업 실패".into()));
+                        return Err(CompilerError::RuntimeError("stdout 작업 실패".into()));
                     }
                 };
 
@@ -113,28 +112,37 @@ impl CompileExecutor for LocalCompileExecutor {
                     Ok(Ok(diagnostics)) => diagnostics,
                     Ok(Err(err)) => return Err(err),
                     Err(_) => {
-                        return Err(CompileExecuteError::RuntimeError("stderr 작업 실패".into()));
+                        return Err(CompilerError::RuntimeError("stderr 작업 실패".into()));
                     }
                 };
 
                 let status = child.wait().await.map_err(|_| {
-                    CompileExecuteError::RuntimeError("Failed to wait for process".into())
+                    CompilerError::RuntimeError("Failed to wait for process".into())
                 })?;
                 child_reaped = true;
                 if !status.success() {
-                    return Err(CompileExecuteError::CompilationError(
+                    return Err(CompilerError::CompilationError(
                         String::from_utf8_lossy(&diagnostics).to_string(),
                     ));
                 }
 
+                let diagnostics = String::from_utf8_lossy(&diagnostics).to_string();
+                if output.is_empty() {
+                    return Err(CompilerError::CompilationError(if diagnostics.is_empty() {
+                        "Compilation produced no Wasm output".into()
+                    } else {
+                        diagnostics
+                    }));
+                }
+
                 Ok(CompileExecuteResult {
                     output,
-                    diagnostics: String::from_utf8_lossy(&diagnostics).to_string(),
+                    diagnostics,
                 })
             },
         )
         .await
-        .unwrap_or_else(|_| Err(CompileExecuteError::TimeLimitExceeded(limits.time_limit_ms)));
+        .unwrap_or_else(|_| Err(CompilerError::TimeLimitExceeded(limits.time_limit_ms)));
 
         if result.is_err() {
             stdout_handle.abort();
@@ -176,6 +184,27 @@ async fn captures_stdout_as_bytes_and_stderr_as_diagnostics() {
     assert_eq!(result.diagnostics, "warning");
 }
 
+#[tokio::test]
+async fn empty_output_is_a_compilation_error() {
+    let limits = || CompilerResourceLimits {
+        memory_limit_byte: 64 * 1024 * 1024,
+        time_limit_ms: 5000,
+        build_artifact_size_limit_byte: 1024,
+    };
+
+    for (script, expected) in [
+        ("true", "Compilation produced no Wasm output"),
+        ("printf 'warning' >&2", "warning"),
+    ] {
+        let mut executor = LocalCompileExecutor::new("sh", ["-c", script]);
+        let result = executor.execute("", limits()).await;
+        assert!(matches!(
+            result,
+            Err(CompilerError::CompilationError(message)) if message == expected
+        ));
+    }
+}
+
 #[cfg(test)]
 fn assert_process_stopped(pid_file: &std::path::Path) {
     let pid = std::fs::read_to_string(pid_file).unwrap();
@@ -215,10 +244,7 @@ async fn time_limit_stops_compiler_with_blocked_input() {
     .await
     .expect("execute did not return after the time limit");
 
-    assert!(matches!(
-        result,
-        Err(CompileExecuteError::TimeLimitExceeded(200))
-    ));
+    assert!(matches!(result, Err(CompilerError::TimeLimitExceeded(200))));
     assert_process_stopped(&pid_file);
 }
 
@@ -247,7 +273,7 @@ async fn artifact_limit_stops_compiler() {
 
     assert!(matches!(
         result,
-        Err(CompileExecuteError::BuildArtifactSizeLimitExceeded(4))
+        Err(CompilerError::BuildArtifactSizeLimitExceeded(4))
     ));
     assert_process_stopped(&pid_file);
 }
