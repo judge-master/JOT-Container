@@ -1,14 +1,14 @@
 use async_trait::async_trait;
 use super::Compiler;
 use super::compile_executor::{CompileExecutor, local::LocalCompileExecutor};
-use crate::grader::compiler::CompilerResult;
+use crate::grader::compiler::{CompilerResourceLimits, CompilerResult};
 use crate::grader::executor::{wasm_executor::WasmExecutor};
 
 
 pub struct CppCompiler;
 #[async_trait]
 impl Compiler for CppCompiler {
-    async fn compile(&mut self, source: &str) -> Result<(CompilerResult), String> {
+    async fn compile(&mut self, source: &str, limits:CompilerResourceLimits) -> Result<(CompilerResult), String> {
         let args = ["-o", "-", "-std=c++17", "-O2", "-Wall", "-x", "c++", "-"];
         let additional_flags = std::env::var("CLANGPP_ADDITIONAL_FLAGS").unwrap_or("".into());
         let additional_flags = additional_flags
@@ -20,7 +20,7 @@ impl Compiler for CppCompiler {
             args.into_iter().chain(additional_flags)
         );
 
-        match compile_executor.execute(source, 0, 0).await {
+        match compile_executor.execute(source, limits).await {
             Ok(result) => {
                 if !result.output.is_empty() {
                     let executor = Box::new(WasmExecutor::new(result.output));
@@ -48,7 +48,14 @@ async fn test_cpp_compiler() {
         return 0;
     }
     "#;
-    match compiler.compile(source).await {
+
+    let limits = CompilerResourceLimits {
+        memory_limit_byte: 64 * 1024 * 1024, // 64 MB
+        time_limit_ms: 10000, // 10 seconds
+        build_artifact_size_limit_byte: 10 * 1024 * 1024, // 10 MB
+    };
+
+    match compiler.compile(source, limits).await {
         Ok(compiler_result) => {
             println!("Compilation succeeded. Diagnostics: {}", compiler_result.diagnostics);
         },
