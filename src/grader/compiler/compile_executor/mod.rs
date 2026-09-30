@@ -1,4 +1,4 @@
-pub mod simple_compile_executor;
+pub mod local;
 
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncWriteExt};
@@ -19,21 +19,13 @@ pub struct CompileExecuteResult {
 
 #[async_trait]
 pub trait CompileExecutor: Send {
-    async fn execute(&mut self, input: &str, memory_limit: u64, time_limit: u64) -> Result<CompileExecuteResult, CompileExecuteError>;
-}
-
-#[async_trait]
-pub trait StreamCompileExecutor: Send {
-    async fn execute(
+    async fn execute_stream(
         &mut self, 
         input: Box<dyn AsyncRead + Send + Sync + Unpin + 'static>, 
         memory_limit: u64, 
         time_limit: u64
     ) -> Result<CompileExecuteResult, CompileExecuteError>;
-}
 
-#[async_trait]
-impl<T> CompileExecutor for T where T: StreamCompileExecutor {
     async fn execute(&mut self, input: &str, memory_limit: u64, time_limit: u64) -> Result<CompileExecuteResult, CompileExecuteError> {
         let (mut writer, reader) = tokio::io::duplex(1024);
         let input = String::from(input); // It has copy overhead, someday it has to be improved...
@@ -42,7 +34,7 @@ impl<T> CompileExecutor for T where T: StreamCompileExecutor {
             writer.shutdown().await.unwrap_or(());
         });
 
-        let result = self.execute(Box::new(reader), memory_limit, time_limit).await;
+        let result = self.execute_stream(Box::new(reader), memory_limit, time_limit).await;
 
         if let Err(_) = handle.await {
             return Err(CompileExecuteError::RuntimeError { reason: Some("Failed to write data to stream".into()) });

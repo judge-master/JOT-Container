@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use super::Compiler;
-use super::compile_executor::{CompileExecutor, simple_compile_executor::SimpleCompileExecutor};
+use super::compile_executor::{CompileExecutor, local::LocalCompileExecutor};
 use crate::grader::compiler::CompilerResult;
 use crate::grader::executor::{wasm_executor::WasmExecutor};
 
@@ -14,7 +14,7 @@ impl Compiler for CCompiler {
             .split_whitespace()
             .filter(|s| !s.is_empty());
 
-        let mut compile_executor = SimpleCompileExecutor::new(
+        let mut compile_executor = LocalCompileExecutor::new(
             std::env::var("CLANG_PATH").unwrap_or("clang".into()),
             args.into_iter().chain(additional_flags)
         );

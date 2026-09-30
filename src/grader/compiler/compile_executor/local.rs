@@ -2,16 +2,16 @@
 // It can be used for implementing compile executors
 
 use async_trait::async_trait;
-use super::{StreamCompileExecutor, CompileExecuteError, CompileExecuteResult};
+use super::{CompileExecutor, CompileExecuteError, CompileExecuteResult};
 use tokio::io::{AsyncRead, AsyncWriteExt};
 use tokio::process::Command;
 
-pub struct SimpleCompileExecutor {
+pub struct LocalCompileExecutor {
     command: String,
     args: Vec<String>,
 }
 
-impl SimpleCompileExecutor {
+impl LocalCompileExecutor {
     pub fn new<S, I, S2>(command: S, args: I) -> Self
     where S: Into<String>, I: IntoIterator<Item = S2>, S2: Into<String> {
         Self {
@@ -22,9 +22,9 @@ impl SimpleCompileExecutor {
 }
 
 #[async_trait]
-impl StreamCompileExecutor for SimpleCompileExecutor {
+impl CompileExecutor for LocalCompileExecutor {
     // todo: implement memory limit and time limit
-    async fn execute(
+    async fn execute_stream(
         &mut self, 
         mut input: Box<dyn AsyncRead + Send + Sync + Unpin + 'static>, 
         memory_limit: u64, 
@@ -62,7 +62,7 @@ impl StreamCompileExecutor for SimpleCompileExecutor {
 async fn captures_stdout_as_bytes_and_stderr_as_diagnostics() {
     use super::CompileExecutor;
 
-    let mut executor = SimpleCompileExecutor::new("sh", ["-c", "cat; printf '\\377'; printf 'warning' >&2"]);
+    let mut executor = LocalCompileExecutor::new("sh", ["-c", "cat; printf '\\377'; printf 'warning' >&2"]);
     let result = CompileExecutor::execute(&mut executor, "wasm", 0, 0).await.unwrap();
 
     assert_eq!(result.output, b"wasm\xff");
