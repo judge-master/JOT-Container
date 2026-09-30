@@ -11,6 +11,15 @@ pub struct CompilerResult {
     pub diagnostics: String,
 }
 
+#[derive(Debug)]
+pub enum CompilerError {
+    TimeLimitExceeded(u64),
+    MemoryLimitExceeded(u64),
+    BuildArtifactSizeLimitExceeded(u64),
+    CompilationError(String),
+    RuntimeError(String),
+}
+
 pub struct CompilerResourceLimits {
     pub memory_limit_byte: u64,
     pub time_limit_ms: u64,
@@ -24,5 +33,5 @@ pub trait Compiler {
         &mut self,
         source: &str,
         limits: CompilerResourceLimits,
-    ) -> Result<CompilerResult, String>;
+    ) -> Result<CompilerResult, CompilerError>;
 }

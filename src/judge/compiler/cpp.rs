@@ -1,6 +1,6 @@
 use super::Compiler;
 use super::compile_executor::{CompileExecutor, local::LocalCompileExecutor};
-use crate::judge::compiler::{CompilerResourceLimits, CompilerResult};
+use crate::judge::compiler::{CompilerError, CompilerResourceLimits, CompilerResult};
 use crate::judge::executor::wasm_executor::WasmExecutor;
 use async_trait::async_trait;
 
@@ -11,7 +11,7 @@ impl Compiler for CppCompiler {
         &mut self,
         source: &str,
         limits: CompilerResourceLimits,
-    ) -> Result<(CompilerResult), String> {
+    ) -> Result<(CompilerResult), CompilerError> {
         let args = ["-o", "-", "-std=c++17", "-O2", "-Wall", "-x", "c++", "-"];
         let additional_flags = std::env::var("CLANGPP_ADDITIONAL_FLAGS").unwrap_or("".into());
         let additional_flags = additional_flags
@@ -23,24 +23,11 @@ impl Compiler for CppCompiler {
             args.into_iter().chain(additional_flags),
         );
 
-        match compile_executor.execute(source, limits).await {
-            Ok(result) => {
-                if !result.output.is_empty() {
-                    let executor = Box::new(WasmExecutor::new(result.output));
-                    Ok(CompilerResult {
-                        executor,
-                        diagnostics: result.diagnostics,
-                    })
-                } else {
-                    Err(if result.diagnostics.is_empty() {
-                        "Compilation produced no Wasm output".into()
-                    } else {
-                        result.diagnostics
-                    })
-                }
-            }
-            Err(e) => Err(format!("Compilation failed: {:?}", e)),
-        }
+        let result = compile_executor.execute(source, limits).await?;
+        Ok(CompilerResult {
+            executor: Box::new(WasmExecutor::new(result.output)),
+            diagnostics: result.diagnostics,
+        })
     }
 }
 
@@ -71,7 +58,7 @@ async fn test_cpp_compiler() {
             );
         }
         Err(err) => {
-            println!("Compilation failed with error: {}", err);
+            println!("Compilation failed with error: {:?}", err);
             panic!("Compilation failed");
         }
     }

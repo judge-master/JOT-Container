@@ -3,16 +3,8 @@ pub mod local;
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncWriteExt};
 
-use crate::judge::compiler::CompilerResourceLimits;
+use crate::judge::compiler::{CompilerError, CompilerResourceLimits};
 
-#[derive(Debug)]
-pub enum CompileExecuteError {
-    TimeLimitExceeded(u64),
-    MemoryLimitExceeded(u64),
-    BuildArtifactSizeLimitExceeded(u64),
-    CompilationError(String),
-    RuntimeError(String),
-}
 #[derive(Debug)]
 pub struct CompileExecuteResult {
     pub output: Vec<u8>,
@@ -25,13 +17,13 @@ pub trait CompileExecutor: Send {
         &mut self,
         input: Box<dyn AsyncRead + Send + Sync + Unpin + 'static>,
         limits: CompilerResourceLimits,
-    ) -> Result<CompileExecuteResult, CompileExecuteError>;
+    ) -> Result<CompileExecuteResult, CompilerError>;
 
     async fn execute(
         &mut self,
         input: &str,
         limits: CompilerResourceLimits,
-    ) -> Result<CompileExecuteResult, CompileExecuteError> {
+    ) -> Result<CompileExecuteResult, CompilerError> {
         let (mut writer, reader) = tokio::io::duplex(1024);
         let input = String::from(input); // It has copy overhead, someday it has to be improved...
         let handle = tokio::spawn(async move {
@@ -42,7 +34,7 @@ pub trait CompileExecutor: Send {
         let result = self.execute_stream(Box::new(reader), limits).await;
 
         if let Err(_) = handle.await {
-            return Err(CompileExecuteError::RuntimeError(
+            return Err(CompilerError::RuntimeError(
                 "Failed to write data to stream".into(),
             ));
         }
