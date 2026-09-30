@@ -1,9 +1,9 @@
 pub mod checker;
-pub mod executor;
 pub mod compiler;
+pub mod executor;
 
 use checker::Checker;
-use executor::{Executor, ExecuteError, ExecuteResult};
+use executor::{ExecuteError, ExecuteResult, Executor};
 use std::sync::Arc;
 
 // Arc is used for efficient caching between multiple threads
@@ -18,7 +18,6 @@ pub struct Problem {
     pub instruction_limit: u64,
     pub tests: Vec<Testcase>,
 }
-
 
 pub struct Grader<C: Checker, E: Executor> {
     pub checker: C,
@@ -58,11 +57,18 @@ impl<C: Checker, E: Executor> Grader<C, E> {
         };
 
         for (idx, test) in problem.tests.iter().enumerate() {
-            let res = executor.execute(&test.input, problem.memory_limit, problem.instruction_limit).await;
+            let res = executor
+                .execute(&test.input, problem.memory_limit, problem.instruction_limit)
+                .await;
             match res {
-                Ok(ExecuteResult {output, memory_used, instruction_count}) => {
+                Ok(ExecuteResult {
+                    output,
+                    memory_used,
+                    instruction_count,
+                }) => {
                     grade_result.memory_used = grade_result.memory_used.max(memory_used);
-                    grade_result.instruction_count = grade_result.instruction_count.max(instruction_count);
+                    grade_result.instruction_count =
+                        grade_result.instruction_count.max(instruction_count);
 
                     if !checker.check(&output, &test.answer).await.unwrap_or(false) {
                         grade_result.verdict = Verdict::WrongAnswer;

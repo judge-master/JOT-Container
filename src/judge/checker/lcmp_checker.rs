@@ -3,8 +3,8 @@
 
 use std::iter::zip;
 
-use async_trait::async_trait;
 use super::Checker;
+use async_trait::async_trait;
 
 pub struct LcmpChecker;
 
@@ -16,16 +16,22 @@ impl LcmpChecker {
 
 #[async_trait]
 impl Checker for LcmpChecker {
-    async fn check(&mut self, output: &str, answer: &str) -> Result<bool, Box<dyn std::error::Error>> {
+    async fn check(
+        &mut self,
+        output: &str,
+        answer: &str,
+    ) -> Result<bool, Box<dyn std::error::Error>> {
         let output = output.split('\n');
         let answer = answer.split('\n');
 
         for (o, a) in zip(output, answer) {
-            let o = o.split(' ')
+            let o = o
+                .split(' ')
                 .map(|x| x.trim())
                 .filter(|x| x.len() > 0)
                 .collect::<Vec<_>>();
-            let a = a.split(' ')
+            let a = a
+                .split(' ')
                 .map(|x| x.trim())
                 .filter(|x| x.len() > 0)
                 .collect::<Vec<_>>();
@@ -52,7 +58,7 @@ mod tests {
     async fn test_1() {
         let output = "1 2";
         let answer = "1 2";
-        
+
         assert_eq!(check(output, answer).await, true);
     }
 
@@ -60,7 +66,7 @@ mod tests {
     async fn test_2() {
         let output = "1     2\n";
         let answer = "1 2";
-        
+
         assert_eq!(check(output, answer).await, true);
     }
 
@@ -68,7 +74,7 @@ mod tests {
     async fn test_3() {
         let output = "1     2 3\n 4 5";
         let answer = "1 2 3\n4 5";
-        
+
         assert_eq!(check(output, answer).await, true);
     }
 
@@ -76,21 +82,21 @@ mod tests {
     async fn test_4() {
         let output = "1     2 3\n 4 5";
         let answer = "1 2\n3 4 5";
-        
+
         assert_eq!(check(output, answer).await, false);
     }
     #[tokio::test]
     async fn test_5() {
         let output = "1     2 3\n\n 4 5";
         let answer = "1 2\n3 4 5";
-        
+
         assert_eq!(check(output, answer).await, false);
     }
     #[tokio::test]
     async fn test_6() {
         let output = "1     2\n\n3   4     5         \n";
         let answer = "1 2\n\n3 4 5";
-        
+
         assert_eq!(check(output, answer).await, true);
     }
 }
