@@ -1,4 +1,3 @@
-use std::path::{Path, PathBuf};
 use async_trait::async_trait;
 use super::{Executor, ExecuteError, ExecuteResult};
 use wasmtime::{Config, Engine, Linker, Module, Store, StoreLimits, StoreLimitsBuilder, Trap};
@@ -17,14 +16,14 @@ lazy_static! {
 
 pub struct WasmExecutor {
     engine: Engine,
-    path: PathBuf,
+    wasm: Vec<u8>,
 }
 
 impl WasmExecutor {
-    pub fn new(path: &Path) -> Self {
+    pub fn new(wasm: Vec<u8>) -> Self {
         Self {
             engine: WASMTIME_ENGINE.clone(),
-            path: path.into()
+            wasm,
         }
     }
 }
@@ -75,7 +74,7 @@ impl Executor for WasmExecutor {
 
         store.set_fuel(initial_fuel).map_err(|_| ExecuteError::RuntimeError { reason: Some("set_fuel() failed".into()) })?;
 
-        let module = Module::from_file(&engine, &self.path)
+        let module = Module::new(&engine, &self.wasm)
             .map_err(|_| ExecuteError::RuntimeError { reason: Some("Failed to load wasm binary".into()) })?;
         linker.module(&mut store, "", &module)
             .map_err(|_| ExecuteError::RuntimeError { reason: Some("linker.module() failed".into()) })?;
