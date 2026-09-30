@@ -8,7 +8,17 @@ permissions:
   contents: read
 
 jobs:
+  cargo-fmt-check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install rustfmt
+        run: rustup component add rustfmt
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+
   container-build-and-cargo-test:
+    needs: cargo-fmt-check
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
