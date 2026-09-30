@@ -7,7 +7,6 @@ use tonic_health::pb::{
 
 #[tokio::test]
 async fn health_check_reports_serving() {
-
     // 현재 가용가능한 포트 확인
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();

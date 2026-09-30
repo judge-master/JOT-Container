@@ -3,8 +3,8 @@ pub mod cpp;
 
 mod compile_executor;
 
-use async_trait::async_trait;
 use crate::judge::executor::Executor;
+use async_trait::async_trait;
 
 pub struct CompilerResult {
     pub executor: Box<dyn Executor>,
@@ -20,5 +20,9 @@ pub struct CompilerResourceLimits {
 #[async_trait]
 pub trait Compiler {
     // Returns an executor holding the compiled Wasm bytes and any compiler diagnostics.
-    async fn compile(&mut self, source: &str, limits: CompilerResourceLimits) -> Result<CompilerResult, String>;
+    async fn compile(
+        &mut self,
+        source: &str,
+        limits: CompilerResourceLimits,
+    ) -> Result<CompilerResult, String>;
 }
