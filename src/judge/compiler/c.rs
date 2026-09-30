@@ -35,7 +35,6 @@ impl Compiler for CCompiler {
 
 #[tokio::test]
 async fn test_c_compiler() {
-    dotenvy::dotenv().ok();
 
     let mut compiler = CCompiler;
     let source = r#"
