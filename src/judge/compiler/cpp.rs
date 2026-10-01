@@ -31,10 +31,14 @@ impl Compiler for CppCompiler {
     }
 }
 
-#[tokio::test]
-async fn test_cpp_compiler() {
-    let mut compiler = CppCompiler;
-    let source = r#"
+#[cfg(test)]
+mod tests {
+    use super::CppCompiler;
+    use crate::judge::compiler::test_support::{
+        ExpectedError, assert_compile_error, assert_compiles, default_limits,
+    };
+
+    const SOURCE: &str = r#"
     #include <iostream>
     int main() {
         int a, b;
@@ -44,22 +48,34 @@ async fn test_cpp_compiler() {
     }
     "#;
 
-    let limits = CompilerResourceLimits {
-        memory_limit_byte: 64 * 1024 * 1024,              // 64 MB
-        time_limit_ms: 10000,                             // 10 seconds
-        build_artifact_size_limit_byte: 10 * 1024 * 1024, // 10 MB
-    };
+    #[tokio::test]
+    async fn test_cpp_compiler() {
+        assert_compiles(&mut CppCompiler, SOURCE).await;
+    }
 
-    match compiler.compile(source, limits).await {
-        Ok(compiler_result) => {
-            println!(
-                "Compilation succeeded. Diagnostics: {}",
-                compiler_result.diagnostics
-            );
-        }
-        Err(err) => {
-            println!("Compilation failed with error: {:?}", err);
-            panic!("Compilation failed");
-        }
+    #[tokio::test]
+    async fn test_cpp_compiler_tle() {
+        let mut limits = default_limits();
+        limits.time_limit_ms = 0;
+        assert_compile_error(
+            &mut CppCompiler,
+            SOURCE,
+            limits,
+            ExpectedError::TimeLimitExceeded(0),
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_cpp_compiler_artifact_size_le() {
+        let mut limits = default_limits();
+        limits.build_artifact_size_limit_byte = 0;
+        assert_compile_error(
+            &mut CppCompiler,
+            SOURCE,
+            limits,
+            ExpectedError::BuildArtifactSizeLimitExceeded(0),
+        )
+        .await;
     }
 }
