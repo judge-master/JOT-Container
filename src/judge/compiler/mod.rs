@@ -35,3 +35,56 @@ pub trait Compiler {
         limits: CompilerResourceLimits,
     ) -> Result<CompilerResult, CompilerError>;
 }
+
+#[cfg(test)]
+pub(crate) mod test_support {
+    use super::{Compiler, CompilerError, CompilerResourceLimits};
+
+    pub fn default_limits() -> CompilerResourceLimits {
+        CompilerResourceLimits {
+            memory_limit_byte: 64 * 1024 * 1024,
+            time_limit_ms: 10_000,
+            build_artifact_size_limit_byte: 10 * 1024 * 1024,
+        }
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    pub enum ExpectedError {
+        TimeLimitExceeded(u64),
+        BuildArtifactSizeLimitExceeded(u64),
+    }
+
+    pub async fn assert_compiles(compiler: &mut impl Compiler, source: &str) {
+        if let Err(err) = compiler.compile(source, default_limits()).await {
+            panic!("Compilation failed: {err:?}");
+        }
+    }
+
+    pub async fn assert_compile_error(
+        compiler: &mut impl Compiler,
+        source: &str,
+        limits: CompilerResourceLimits,
+        expected: ExpectedError,
+    ) {
+        let result = compiler.compile(source, limits).await;
+        let matches_expected = match (&result, expected) {
+            (
+                Err(CompilerError::TimeLimitExceeded(actual)),
+                ExpectedError::TimeLimitExceeded(expected),
+            ) => *actual == expected,
+            (
+                Err(CompilerError::BuildArtifactSizeLimitExceeded(actual)),
+                ExpectedError::BuildArtifactSizeLimitExceeded(expected),
+            ) => *actual == expected,
+            _ => false,
+        };
+        assert!(
+            matches_expected,
+            "Expected {expected:?}, got {}",
+            match result {
+                Ok(_) => "success".to_string(),
+                Err(err) => format!("{err:?}"),
+            }
+        );
+    }
+}
