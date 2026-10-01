@@ -1,11 +1,17 @@
 name: CI
 
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
 
 permissions:
   contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   cargo-fmt-check:
@@ -28,5 +34,15 @@ jobs:
           context: .
           target: test
           push: false
-          cache-from: type=gha,scope=app
-          cache-to: type=gha,scope=app,mode=max
+          cache-from: |
+            type=gha,scope=test
+            type=gha,scope=app
+          cache-to: type=gha,scope=test,mode=max
+
+  publish-image:
+    if: github.event_name == 'push'
+    needs: container-build-and-cargo-test
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/cd.yml
