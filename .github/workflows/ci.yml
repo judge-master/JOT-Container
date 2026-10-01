@@ -26,7 +26,6 @@ jobs:
       - uses: docker/build-push-action@v7
         with:
           context: .
-          file: ./Containerfile
           target: test
           push: false
           cache-from: type=gha,scope=app
