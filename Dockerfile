@@ -4,6 +4,23 @@ ARG COMMON_RUST_VERSION=1.96.1-r0
 ARG COMPILER_GO_VERSION=1.26.8-r0
 ARG CARGO_VERSION=1.98.1-r0
 
+
+# 공용으로 사용되는 cargo + cargo chef 설치 단계
+FROM alpine:${ALPINE_VERSION} AS chef
+
+ARG COMMON_RUST_VERSION
+
+RUN apk add --no-cache cargo=${COMMON_RUST_VERSION}
+RUN cargo install cargo-chef --version 0.1.78 --locked
+
+WORKDIR /app
+
+# 의존성 명세를 생성하는 단계
+FROM chef AS planner
+
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
 # 사용자 코드를 빌드하기 위한 도구 체인을 설치하는 단계
 FROM alpine:${ALPINE_VERSION} AS toolchain
 
@@ -27,29 +44,27 @@ ENV CLANGPP_ADDITIONAL_FLAGS="--target=wasm32-wasip1 --sysroot=/usr/share/wasi-s
 FROM toolchain AS test
 
 RUN apk add --no-cache cargo=${COMMON_RUST_VERSION}
+RUN cargo install cargo-chef --version 0.1.78 --locked
 
 WORKDIR /app
-COPY Cargo.toml Cargo.lock ./
-COPY src ./src
-COPY tests ./tests
+
+COPY --from=planner /app/recipe.json recipe.json
+# Build dependencies - this is the caching Docker layer!
+RUN cargo chef cook --recipe-path recipe.json
+
+COPY . .
 
 RUN cargo test --locked
 
 # 프로젝트의 Rust 코드를 빌드하는 단계
-FROM alpine:${ALPINE_VERSION} AS build
+FROM chef AS build
 
-ARG COMMON_RUST_VERSION
+COPY --from=planner /app/recipe.json recipe.json
+# Build dependencies - this is the caching Docker layer!
+RUN cargo chef cook --release --recipe-path recipe.json
 
-RUN apk add --no-cache cargo=${COMMON_RUST_VERSION}
-
-WORKDIR /app
-COPY Cargo.toml Cargo.lock ./
-
-RUN mkdir src && printf 'fn main() {}\n' > src/main.rs \
-    && cargo build --release --locked
-
-COPY src ./src
-RUN touch src/main.rs && cargo build --release --locked
+COPY . .
+RUN cargo build --release --locked
 
 # 최종 이미지를 생성하는 단계
 FROM toolchain AS final
