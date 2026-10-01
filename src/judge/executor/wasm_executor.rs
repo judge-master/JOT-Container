@@ -169,7 +169,7 @@ async fn test_wasm_tle() {
         include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/aplusb.wasm")).to_vec(),
     );
     let res = executor
-        .execute("1 2", 1048576, 1000)
+        .execute("1 2", 1048576, 10)
         .await
         .expect("Runtime error");
     assert_eq!(res.output.trim(), "3");
