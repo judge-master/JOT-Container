@@ -1,8 +1,7 @@
 name: CD
 
 on:
-  push:
-    branches: [main]
+  workflow_call:
 
 permissions:
   contents: read
@@ -32,5 +31,7 @@ jobs:
           tags: |
             ${{ steps.image.outputs.name }}:${{ github.sha }}
             ${{ steps.image.outputs.name }}:main
-          cache-from: type=gha,scope=app
-          cache-to: type=gha,scope=app,mode=max
+          cache-from: |
+            type=gha,scope=release
+            type=gha,scope=app
+          cache-to: type=gha,scope=release,mode=max
