@@ -1,5 +1,6 @@
 use super::Compiler;
 use super::compile_executor::{CompileExecutor, local::LocalCompileExecutor};
+use crate::config;
 use crate::judge::compiler::{CompilerError, CompilerResourceLimits, CompilerResult};
 use crate::judge::executor::wasm_executor::WasmExecutor;
 use async_trait::async_trait;
@@ -13,14 +14,14 @@ impl Compiler for CppCompiler {
         limits: CompilerResourceLimits,
     ) -> Result<(CompilerResult), CompilerError> {
         let args = ["-o", "-", "-std=c++17", "-O2", "-Wall", "-x", "c++", "-"];
-        let additional_flags = std::env::var("CLANGPP_ADDITIONAL_FLAGS").unwrap_or("".into());
-        let additional_flags = additional_flags
-            .split_whitespace()
-            .filter(|s| !s.is_empty());
 
         let mut compile_executor = LocalCompileExecutor::new(
-            std::env::var("CLANGPP_PATH").unwrap_or("clang++".into()),
-            args.into_iter().chain(additional_flags),
+            config::clangpp_path(),
+            args.into_iter().chain(
+                config::clangpp_additional_flags()
+                    .iter()
+                    .map(|s| s.as_str()),
+            ),
         );
 
         let result = compile_executor.execute(source, limits).await?;
