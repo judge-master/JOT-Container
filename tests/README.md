@@ -22,3 +22,14 @@ cargo test
 | 파일 | 확인하는 동작 |
 | --- | --- |
 | [`health.rs`](health.rs) | 서버를 실행한 뒤 gRPC Health `Check` 요청을 보내 빈 서비스 이름에 대해 `SERVING`을 반환하는지 확인한다. |
+| [`judge_protocol.rs`](judge_protocol.rs) | 실제 서버에 `Judge` 요청을 보내 요청 ID, 최종 결과 수신 및 스트림의 정상 종료를 확인한다. |
+
+## 채점 프로토콜 테스트
+
+```sh
+cargo test --test judge_protocol
+```
+
+위 테스트도 앞서 설명한 필수 환경변수를 설정한 셸에서 실행한다.
+
+현재 gRPC 서버는 채점기를 호출하지 않고 `request_id = 1`인 고정 `Accepted` 결과를 반환한다. 테스트는 이 요청 ID로 RPC를 호출하여 응답의 요청 ID가 일치하고, 최종 결과가 한 번만 전달된 뒤 스트림이 정상 종료되는지 확인한다. 최종 결과 이전의 진행 이벤트는 허용한다. 실제 컴파일·채점 동작이나 사용량 통계는 검증하지 않는다.
