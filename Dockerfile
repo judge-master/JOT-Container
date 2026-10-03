@@ -28,7 +28,7 @@ ARG COMPILER_CLANG_VERSION
 ARG COMMON_RUST_VERSION
 ARG COMPILER_GO_VERSION
 RUN apk add --no-cache clang22=${COMPILER_CLANG_VERSION} lld22 wasi-libc wasi-libcxx wasi-compiler-rt \
-    rust-wasm=${COMMON_RUST_VERSION} go=${COMPILER_GO_VERSION}
+    rust-wasm=${COMMON_RUST_VERSION} go=${COMPILER_GO_VERSION} protoc
 
 ENV GRPC_ADDR=0.0.0.0:50051
 
