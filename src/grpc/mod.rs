@@ -4,7 +4,6 @@ use crate::generated::jot::judge_event::Payload;
 use crate::generated::jot::judge_service_server::{JudgeService, JudgeServiceServer};
 use crate::generated::jot::{JudgeEvent, JudgeRequest, JudgeResult, Verdict};
 use tokio_stream::Stream;
-use tonic::async_trait;
 use tonic::transport::Server;
 use tonic::{Request, Response, Status};
 use tonic_health::{ServingStatus, server::health_reporter};
