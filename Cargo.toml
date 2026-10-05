@@ -14,7 +14,3 @@ tonic-health = "0.14.6"
 tonic-prost = "0.14.6"
 wasmtime = "49.0.1"
 wasmtime-wasi = { version = "49.0.1", features = ["p1"] }
-
-[build-dependencies]
-tonic-build = "0.14.6"
-tonic-prost-build = "0.14.6"
