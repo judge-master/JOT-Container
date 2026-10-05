@@ -1,6 +1,6 @@
 use std::{net::TcpListener, time::Duration};
 
-use JOT_Container::jot::{
+use JOT_Container::generated::jot::{
     JudgeEvent, JudgeRequest, JudgeResult, Language, ResourceLimits, Verdict, judge_event::Payload,
     judge_service_client::JudgeServiceClient,
 };
