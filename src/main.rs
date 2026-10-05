@@ -1,7 +1,7 @@
 mod config;
-mod generated;
 mod grpc;
 mod judge;
+mod proto;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

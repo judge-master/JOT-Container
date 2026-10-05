@@ -1,8 +1,9 @@
 use std::{net::SocketAddr, pin::Pin};
 
-use crate::generated::jot::judge_event::Payload;
-use crate::generated::jot::judge_service_server::{JudgeService, JudgeServiceServer};
-use crate::generated::jot::{JudgeEvent, JudgeRequest, JudgeResult, Verdict};
+use crate::proto::judge::v1::judge_event::Payload;
+use crate::proto::judge::v1::judge_service_server::{JudgeService, JudgeServiceServer};
+use crate::proto::judge::v1::{JudgeEvent, JudgeRequest, JudgeResult, Verdict};
+
 use tokio_stream::Stream;
 use tonic::transport::Server;
 use tonic::{Request, Response, Status};

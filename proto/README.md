@@ -14,6 +14,6 @@ cargo install protoc-gen-prost protoc-gen-tonic
 이제 아래 명령을 실행하면 src/generated 아래에 파일이 생성됩니다.
 ```sh
 protoc -I proto proto/judge/v1/judge.proto \
-  --prost_out=src/generated \
-  --tonic_out=src/generated
+  --prost_out=src/proto \
+  --tonic_out=src/proto
 ```
