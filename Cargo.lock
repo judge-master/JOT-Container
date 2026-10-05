@@ -7,6 +7,7 @@ name = "JOT-Container"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "jot-proto",
  "lazy_static",
  "prost",
  "tokio",
@@ -1034,6 +1035,17 @@ checksum = "1c00acbd29eabad4a2392fa0e921c874934dbbf4194312ad20f04a0ed67a3cb3"
 dependencies = [
  "getrandom 0.4.3",
  "libc",
+]
+
+[[package]]
+name = "jot-proto"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "deb3fdc012a660f69fff81835e0e358a59e2d00d4a0351bc0f997c3201eb1bfb"
+dependencies = [
+ "prost",
+ "tonic",
+ "tonic-prost",
 ]
 
 [[package]]
