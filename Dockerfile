@@ -43,7 +43,7 @@ ENV CLANGPP_ADDITIONAL_FLAGS="--target=wasm32-wasip1 --sysroot=/usr/share/wasi-s
 # CI에서 Rust 테스트를 실행하는 타겟
 FROM toolchain AS test
 
-RUN apk add --no-cache cargo=${COMMON_RUST_VERSION} protoc
+RUN apk add --no-cache cargo=${COMMON_RUST_VERSION}
 RUN cargo install cargo-chef --version 0.1.78 --locked
 
 WORKDIR /app
@@ -58,8 +58,6 @@ RUN cargo test --locked
 
 # 프로젝트의 Rust 코드를 빌드하는 단계
 FROM chef AS build
-
-RUN apk add --no-cache protoc
 
 COPY --from=planner /app/recipe.json recipe.json
 # Build dependencies - this is the caching Docker layer!
