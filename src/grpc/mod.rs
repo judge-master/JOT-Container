@@ -2,8 +2,11 @@ use std::{net::SocketAddr, pin::Pin};
 
 use jot_proto::judge::v1::judge_event::Payload;
 use jot_proto::judge::v1::judge_service_server::{JudgeService, JudgeServiceServer};
-use jot_proto::judge::v1::{JudgeEvent, JudgeRequest, JudgeResult, Verdict};
+use jot_proto::judge::v1::{
+    JudgeEvent, JudgePhase, JudgeProgress, JudgeRequest, JudgeResult, Verdict,
+};
 
+use tokio::sync::mpsc;
 use tokio_stream::Stream;
 use tonic::transport::Server;
 use tonic::{Request, Response, Status};
@@ -34,19 +37,45 @@ impl JudgeService for Service {
         &self,
         request: Request<JudgeRequest>,
     ) -> Result<tonic::Response<Self::JudgeStream>, tonic::Status> {
-        println!("Request: {:?}", request.into_inner());
-        let mut events = Vec::new();
-        events.push(Ok(JudgeEvent {
-            request_id: 1,
-            payload: Some(Payload::Result(JudgeResult {
-                verdict: Verdict::Accepted.into(),
-                max_instruction_count: None,
-                max_memory_bytes: None,
-                compiler_diagnostics: "Hello world!".into(),
-                error_message: None,
-            })),
-        }));
-        let output: Self::JudgeStream = Box::pin(tokio_stream::iter(events));
-        Ok(Response::new(output))
+        let req_payload = request.into_inner();
+
+        let (tx, rx) = mpsc::channel::<Result<JudgeEvent, Status>>(8);
+
+        tokio::spawn(async move {
+            // Simulate some async work
+            // TODO: 실제로는 컴파일러나 Wasm 런타임 환경에서 코드를 실행하고, 그 결과를 이벤트로 만들어서 보내야 함
+            let total_cases = 9;
+            for completed_cases in 1..=total_cases {
+                let event = JudgeEvent {
+                    request_id: req_payload.request_id,
+                    payload: Some(Payload::Progress(JudgeProgress {
+                        phase: JudgePhase::Running.into(),
+                        completed_cases,
+                        total_cases,
+                    })),
+                };
+                if let Err(e) = tx.send(Ok(event)).await {
+                    eprintln!("Failed to send event: {}", e);
+                    return;
+                }
+                tokio::time::sleep(tokio::time::Duration::from_millis(50)).await; // Simulate some delay(50ms) between events
+            }
+            let event = JudgeEvent {
+                request_id: req_payload.request_id,
+                payload: Some(Payload::Result(JudgeResult {
+                    verdict: Verdict::Accepted.into(),
+                    max_instruction_count: Some(1000),
+                    max_memory_bytes: Some(1024),
+                    compiler_diagnostics: String::new(),
+                    error_message: None,
+                })),
+            };
+            if let Err(e) = tx.send(Ok(event)).await {
+                eprintln!("Failed to send terminal result: {}", e);
+            }
+        });
+
+        let stream = tokio_stream::wrappers::ReceiverStream::new(rx);
+        Ok(Response::new(Box::pin(stream)))
     }
 }
