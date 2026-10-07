@@ -5,17 +5,17 @@ use jot_proto::judge::v1::{JudgeEvent, JudgeRequest};
 
 use tokio_stream::StreamExt;
 
-use tokio::sync::Mutex;
 use tokio_stream::Stream;
+use tokio_stream::wrappers::ReceiverStream;
 use tonic::transport::Server;
 use tonic::{Request, Response, Status};
 use tonic_health::{ServingStatus, server::health_reporter};
 
-use crate::judge::JudgeOperator;
+use crate::judge::JudgeQueue;
 
 pub async fn serve(
     address: SocketAddr,
-    judge_operator: JudgeOperator,
+    judge_queue: JudgeQueue,
 ) -> Result<(), tonic::transport::Error> {
     // 일단 health_reporter를 사용하여 gRPC 서버의 healthchek 응답을 결정하고, 나중에 컴파일러나 Wasm 런타임 환경에 대한 정보까지 포함하여 healthcheck 응답을 결정하도록 개선할 계획
     let (reporter, health_service) = health_reporter();
@@ -27,7 +27,7 @@ pub async fn serve(
     Server::builder()
         .add_service(health_service)
         .add_service(JudgeServiceServer::new(Service {
-            judge_operator: Mutex::new(judge_operator),
+            judge_queue: judge_queue,
         }))
         .serve_with_shutdown(address, async {
             let _ = tokio::signal::ctrl_c().await;
@@ -36,7 +36,7 @@ pub async fn serve(
 }
 
 pub struct Service {
-    judge_operator: Mutex<JudgeOperator>,
+    judge_queue: JudgeQueue,
 }
 
 #[tonic::async_trait]
@@ -48,9 +48,12 @@ impl JudgeService for Service {
     ) -> Result<tonic::Response<Self::JudgeStream>, tonic::Status> {
         let req_payload = request.into_inner();
 
-        let mut judge_operator = self.judge_operator.lock().await;
-        let event_stream = judge_operator.submit(req_payload);
-        let judge_stream = event_stream.map(Ok::<JudgeEvent, Status>);
+        let event_receiver = self
+            .judge_queue
+            .submit(req_payload)
+            .await
+            .map_err(Status::unavailable)?;
+        let judge_stream = ReceiverStream::new(event_receiver).map(Ok::<JudgeEvent, Status>);
 
         Ok(Response::new(Box::pin(judge_stream)))
     }

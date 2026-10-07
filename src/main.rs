@@ -7,9 +7,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load configuration
     config::init_config().map_err(|e| format!("Failed to load configuration: {}", e))?;
     let address = config::grpc_address();
-    let judge_operator = judge::JudgeOperator::new(10);
+    let judge_operator = judge::JudgeQueue::new(10);
 
-    // run gRPC server
+    // run gRPC serve
     grpc::serve(address, judge_operator).await?;
     Ok(())
 }

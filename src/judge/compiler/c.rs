@@ -9,7 +9,7 @@ pub struct CCompiler;
 #[async_trait]
 impl Compiler for CCompiler {
     async fn compile(
-        &mut self,
+        &self,
         source: &str,
         limits: CompilerResourceLimits,
     ) -> Result<CompilerResult, CompilerError> {
