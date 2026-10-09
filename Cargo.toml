@@ -8,6 +8,7 @@ async-trait = "0.1.92"
 jot-proto = "1.0.0"
 lazy_static = "1.5.0"
 prost = "0.14.4"
+scc = "3.8.8"
 tokio = { version = "1", features = ["macros", "process", "rt-multi-thread", "signal", "time"] }
 tokio-stream = "0.1.19"
 tonic = "0.14.6"
