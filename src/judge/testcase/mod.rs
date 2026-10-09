@@ -26,7 +26,7 @@ type CacheEntry = Arc<OnceCell<CacheResult>>;
 pub struct ProblemCache {
     max_cache_size: usize,
     current_cache_size: Arc<AtomicIsize>,
-    cache: scc::HashMap<i64, CacheEntry>,
+    cache: scc::HashCache<i64, CacheEntry>,
 }
 
 impl ProblemCache {
@@ -34,7 +34,7 @@ impl ProblemCache {
         Self {
             max_cache_size,
             current_cache_size: Arc::new(AtomicIsize::new(0)),
-            cache: scc::HashMap::new(),
+            cache: scc::HashCache::new(),
         }
     }
     // it works only for Arc<Self>
@@ -52,7 +52,8 @@ impl ProblemCache {
             .cache
             .entry_async(key)
             .await
-            .or_insert_with(|| Arc::new(OnceCell::new()))
+            .or_put_with(|| Arc::new(OnceCell::new()))
+            .1
             .clone();
         cell.get_or_init(|| async {
             sleep(Duration::from_millis(50)).await;
