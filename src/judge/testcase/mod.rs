@@ -1,5 +1,8 @@
 use std::{
-    sync::{Arc, atomic::AtomicUsize},
+    sync::{
+        Arc,
+        atomic::{AtomicIsize, Ordering},
+    },
     time::Duration,
 };
 
@@ -22,7 +25,7 @@ type CacheResult = Result<Option<Arc<Problem>>, String>;
 type CacheEntry = Arc<OnceCell<CacheResult>>;
 pub struct ProblemCache {
     max_cache_size: usize,
-    current_cache_size: AtomicUsize,
+    current_cache_size: Arc<AtomicIsize>,
     cache: scc::HashMap<i64, CacheEntry>,
 }
 
@@ -30,7 +33,7 @@ impl ProblemCache {
     pub fn new(max_cache_size: usize) -> Self {
         Self {
             max_cache_size,
-            current_cache_size: AtomicUsize::new(0),
+            current_cache_size: Arc::new(AtomicIsize::new(0)),
             cache: scc::HashMap::new(),
         }
     }
@@ -44,6 +47,7 @@ impl ProblemCache {
     }
     pub async fn get(&self, problem_id: i64) -> CacheResult {
         let key = problem_id;
+        let current_cache_size = self.current_cache_size.clone();
         let cell = self
             .cache
             .entry_async(key)
@@ -54,7 +58,7 @@ impl ProblemCache {
             sleep(Duration::from_millis(50)).await;
             // Load the testcase from the database or filesystem
             // For now, we just return a dummy problem
-            Ok(Some(Arc::new(Problem {
+            let result = Ok(Some(Arc::new(Problem {
                 id: problem_id,
                 memory_limit: 0,
                 instruction_limit: 0,
@@ -68,7 +72,17 @@ impl ProblemCache {
                         answer: "dummy answer 2".into(),
                     },
                 ],
-            })))
+            })));
+            // Update the current cache size
+            if let Ok(Some(problem)) = &result {
+                let now_size = problem
+                    .tests
+                    .iter()
+                    .map(|t| t.input.len() + t.answer.len())
+                    .sum::<usize>();
+                current_cache_size.fetch_add(now_size as isize, Ordering::Relaxed);
+            }
+            result
         })
         .await
         .clone()
