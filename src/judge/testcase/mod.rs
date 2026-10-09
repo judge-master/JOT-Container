@@ -5,11 +5,10 @@ use std::{
 
 use tokio::{sync::OnceCell, time::sleep};
 
-// Arc is used for efficient caching between multiple threads
 #[derive(Clone)]
 pub struct Testcase {
-    pub input: Arc<str>,
-    pub answer: Arc<str>,
+    pub input: String,
+    pub answer: String,
 }
 
 pub struct Problem {
@@ -19,13 +18,15 @@ pub struct Problem {
     pub tests: Vec<Testcase>,
 }
 
-pub struct TestcaseCache {
+type CacheResult = Result<Option<Arc<Problem>>, String>;
+type CacheEntry = Arc<OnceCell<CacheResult>>;
+pub struct ProblemCache {
     max_cache_size: usize,
     current_cache_size: AtomicUsize,
-    cache: scc::HashMap<(i64, i32), OnceCell<Testcase>>,
+    cache: scc::HashMap<i64, CacheEntry>,
 }
 
-impl TestcaseCache {
+impl ProblemCache {
     pub fn new(max_cache_size: usize) -> Self {
         Self {
             max_cache_size,
@@ -38,46 +39,39 @@ impl TestcaseCache {
         // Preload all testcases for the given problem
         // This is a placeholder implementation
         tokio::spawn(async move {
-            for i in 0..10 {
-                self.get_testcase(problem_id, i).await;
-            }
+            let _ = self.get(problem_id).await;
         });
     }
-    pub async fn get_testcase(&self, problem_id: i64, testcase_id: i32) -> Testcase {
-        let key = (problem_id, testcase_id);
+    pub async fn get(&self, problem_id: i64) -> CacheResult {
+        let key = problem_id;
         let cell = self
             .cache
             .entry_async(key)
             .await
-            .or_insert_with(|| OnceCell::new());
-        cell.get_or_init(|| {
-            async {
-                sleep(Duration::from_millis(50)).await; // Simulate a delay for loading the testcase
-                // Load the testcase from the database or filesystem
-                // For now, we just return a dummy testcase
-                Testcase {
-                    input: Arc::from("dummy input"),
-                    answer: Arc::from("dummy answer"),
-                }
-            }
+            .or_insert_with(|| Arc::new(OnceCell::new()))
+            .clone();
+        cell.get_or_init(|| async {
+            sleep(Duration::from_millis(50)).await;
+            // Load the testcase from the database or filesystem
+            // For now, we just return a dummy problem
+            Ok(Some(Arc::new(Problem {
+                id: problem_id,
+                memory_limit: 0,
+                instruction_limit: 0,
+                tests: vec![
+                    Testcase {
+                        input: "dummy input".into(),
+                        answer: "dummy answer".into(),
+                    },
+                    Testcase {
+                        input: "dummy input 2".into(),
+                        answer: "dummy answer 2".into(),
+                    },
+                ],
+            })))
         })
         .await
         .clone()
-    }
-    pub async fn get_problem(&self, problem_id: i64) -> Problem {
-        // Load the problem from the database or filesystem
-        let test_count = 10; // Assume there are 10 testcases for the problem
-        let mut tests = Vec::with_capacity(test_count);
-        for i in 0..test_count {
-            let testcase = self.get_testcase(problem_id, i as i32).await;
-            tests.push(testcase);
-        }
-        Problem {
-            id: problem_id,
-            memory_limit: 1024 * 1024 * 128, // 128 MB
-            instruction_limit: 1_000_000,    // 1 million instructions
-            tests,
-        }
     }
 
     fn clean(&self) {

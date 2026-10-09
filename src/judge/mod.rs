@@ -91,18 +91,16 @@ impl<C: Checker, E: Executor> Grader<C, E> {
 async fn test_grader() {
     use checker::lcmp_checker::LcmpChecker;
     use executor::aplusb_executor::APlusBExecutor;
-    use std::sync::Arc;
-
     let problem = Problem {
         id: 1,
         tests: vec![
             Testcase {
-                input: Arc::from("1 2"),
-                answer: Arc::from("3"),
+                input: "1 2".to_string(),
+                answer: "3".to_string(),
             },
             Testcase {
-                input: Arc::from("100 200"),
-                answer: Arc::from("300"),
+                input: "100 200".to_string(),
+                answer: "300".to_string(),
             },
         ],
         memory_limit: 1024 * 1024,
@@ -119,18 +117,16 @@ async fn test_grader() {
 async fn test_grader_instruction_limit() {
     use checker::lcmp_checker::LcmpChecker;
     use executor::aplusb_executor::APlusBExecutor;
-    use std::sync::Arc;
-
     let problem = Problem {
         id: 1,
         tests: vec![
             Testcase {
-                input: Arc::from("1 2"),
-                answer: Arc::from("3"),
+                input: "1 2".to_string(),
+                answer: "3".to_string(),
             },
             Testcase {
-                input: Arc::from("100 200"),
-                answer: Arc::from("300"),
+                input: "100 200".to_string(),
+                answer: "300".to_string(),
             },
         ],
         memory_limit: 1024 * 1024,
