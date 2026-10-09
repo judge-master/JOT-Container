@@ -25,7 +25,9 @@ impl JudgeQueue {
                 };
                 tokio::spawn(async move {
                     let _permit = permit;
-                    job.run().await;
+                    if let Err(e) = job.run().await {
+                        eprintln!("Failed to run JudgeJob: {}", e);
+                    }
                 });
             }
         });

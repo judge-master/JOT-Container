@@ -2,6 +2,8 @@ use jot_proto::judge::v1::JudgeEvent;
 
 use crate::judge::compiler;
 
+pub type Error = Box<dyn std::error::Error + Send + Sync>;
+
 pub struct JudgeJob {
     request: jot_proto::judge::v1::JudgeRequest,
     response_channel: tokio::sync::mpsc::Sender<jot_proto::judge::v1::JudgeEvent>,
@@ -34,17 +36,15 @@ impl JudgeJob {
         })
     }
 
-    pub async fn run(self) {
+    pub async fn run(self) -> Result<(), Error> {
         let limits = self
             .request
             .limits
             .as_ref()
-            .ok_or("Resource limits not provided in the request")
-            .unwrap();
+            .ok_or("Resource limits not provided in the request")?;
 
         // 컴파일 시작 이벤트 발송
-        match self
-            .response_channel
+        self.response_channel
             .send(JudgeEvent {
                 request_id: self.request.request_id,
                 payload: Some(jot_proto::judge::v1::judge_event::Payload::Progress(
@@ -55,14 +55,7 @@ impl JudgeJob {
                     },
                 )),
             })
-            .await
-        {
-            Ok(_) => (),
-            Err(e) => {
-                eprintln!("Failed to send JudgePhase::COMPILING event: {}", e);
-                return;
-            }
-        }
+            .await?;
 
         // 컴파일 진행
         let compiler = compiler::get_compiler(self.request.language());
@@ -93,16 +86,13 @@ impl JudgeJob {
                         judge_result,
                     )),
                 };
-                if let Err(e) = self.response_channel.send(event).await {
-                    eprintln!("Failed to send JudgePhase::COMPILATION_ERROR event: {}", e);
-                }
-                return;
+                self.response_channel.send(event).await?;
+                return Ok(());
             }
         };
 
         // 테스트 케이스 다운로드 시작 이벤트 발송
-        match self
-            .response_channel
+        self.response_channel
             .send(JudgeEvent {
                 request_id: self.request.request_id,
                 payload: Some(jot_proto::judge::v1::judge_event::Payload::Progress(
@@ -113,20 +103,12 @@ impl JudgeJob {
                     },
                 )),
             })
-            .await
-        {
-            Ok(_) => (),
-            Err(e) => {
-                eprintln!("Failed to send JudgePhase::FETCHING_CASES event: {}", e);
-                return;
-            }
-        };
+            .await?;
 
         // TODO: 테스트 케이스 다운로드/캐싱 로직 구현
 
         // 실행 중 이벤트 발송
-        match self
-            .response_channel
+        self.response_channel
             .send(JudgeEvent {
                 request_id: self.request.request_id,
                 payload: Some(jot_proto::judge::v1::judge_event::Payload::Progress(
@@ -137,14 +119,7 @@ impl JudgeJob {
                     },
                 )),
             })
-            .await
-        {
-            Ok(_) => (),
-            Err(e) => {
-                eprintln!("Failed to send JudgePhase::RUNNING event: {}", e);
-                return;
-            }
-        };
+            .await?;
 
         // TODO: 테스트 케이스 적용 구현
         let _ = compiler_result
@@ -165,8 +140,7 @@ impl JudgeJob {
                 judge_result,
             )),
         };
-        if let Err(e) = self.response_channel.send(event).await {
-            eprintln!("Failed to send JudgePhase::RESULT event: {}", e);
-        };
+        self.response_channel.send(event).await?;
+        Ok(())
     }
 }
