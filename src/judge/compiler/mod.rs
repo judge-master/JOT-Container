@@ -51,7 +51,7 @@ pub struct CompilerResourceLimits {
 }
 
 #[async_trait]
-pub trait Compiler: Send + Sync {
+pub trait Compiler: Send {
     // Returns an executor holding the compiled Wasm bytes and any compiler diagnostics.
     async fn compile(
         &self,

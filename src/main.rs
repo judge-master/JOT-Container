@@ -9,7 +9,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let address = config::grpc_address();
     let judge_operator = judge::JudgeQueue::new(10);
 
-    // run gRPC serve
+    // run gRPC server
     grpc::serve(address, judge_operator).await?;
     Ok(())
 }
