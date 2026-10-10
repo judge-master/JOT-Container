@@ -8,7 +8,6 @@ use std::{
 
 use tokio::{sync::OnceCell, time::sleep};
 
-#[derive(Clone)]
 pub struct Testcase {
     pub input: String,
     pub answer: String,
