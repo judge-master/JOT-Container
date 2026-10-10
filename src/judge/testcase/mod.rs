@@ -24,16 +24,12 @@ pub struct Problem {
 type CacheResult = Result<Option<Arc<Problem>>, String>;
 type CacheEntry = Arc<OnceCell<CacheResult>>;
 pub struct ProblemCache {
-    max_cache_size: usize,
-    current_cache_size: Arc<AtomicIsize>,
     cache: scc::HashCache<i64, CacheEntry>,
 }
 
 impl ProblemCache {
     pub fn new(max_cache_size: usize) -> Self {
         Self {
-            max_cache_size,
-            current_cache_size: Arc::new(AtomicIsize::new(0)),
             cache: scc::HashCache::new(),
         }
     }
@@ -47,7 +43,7 @@ impl ProblemCache {
     }
     pub async fn get(&self, problem_id: i64) -> CacheResult {
         let key = problem_id;
-        let current_cache_size = self.current_cache_size.clone();
+        // let current_cache_size = self.current_cache_size.clone();
         let cell = self
             .cache
             .entry_async(key)
@@ -74,15 +70,6 @@ impl ProblemCache {
                     },
                 ],
             })));
-            // Update the current cache size
-            if let Ok(Some(problem)) = &result {
-                let now_size = problem
-                    .tests
-                    .iter()
-                    .map(|t| t.input.len() + t.answer.len())
-                    .sum::<usize>();
-                current_cache_size.fetch_add(now_size as isize, Ordering::Relaxed);
-            }
             result
         })
         .await
