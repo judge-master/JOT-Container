@@ -41,7 +41,7 @@ impl ProblemCache {
             let _ = self.get(problem_id).await;
         });
     }
-    pub async fn get(&self, problem_id: i64) -> CacheResult {
+    pub async fn get(self: Arc<Self>, problem_id: i64) -> CacheResult {
         let key = problem_id;
         // let current_cache_size = self.current_cache_size.clone();
         let cell = self
@@ -51,29 +51,43 @@ impl ProblemCache {
             .or_put_with(|| Arc::new(OnceCell::new()))
             .1
             .clone();
-        cell.get_or_init(|| async {
-            sleep(Duration::from_millis(50)).await;
-            // Load the testcase from the database or filesystem
-            // For now, we just return a dummy problem
-            let result = Ok(Some(Arc::new(Problem {
-                id: problem_id,
-                memory_limit: 1024 * 1024 * 128,  // 128 MB
-                instruction_limit: 1_000_000_000, // 1 billion instructions
-                tests: vec![
-                    Testcase {
-                        input: "1 2".into(),
-                        answer: "3".into(),
-                    },
-                    Testcase {
-                        input: "4 5".into(),
-                        answer: "9".into(),
-                    },
-                ],
-            })));
-            result
-        })
-        .await
-        .clone()
+        let result = cell
+            .get_or_init(|| async {
+                sleep(Duration::from_millis(50)).await;
+                // Load the testcase from the database or filesystem
+                // For now, we just return a dummy problem
+                let result = Ok(Some(Arc::new(Problem {
+                    id: problem_id,
+                    memory_limit: 1024 * 1024 * 128,  // 128 MB
+                    instruction_limit: 1_000_000_000, // 1 billion instructions
+                    tests: vec![
+                        Testcase {
+                            input: "1 2".into(),
+                            answer: "3".into(),
+                        },
+                        Testcase {
+                            input: "4 5".into(),
+                            answer: "9".into(),
+                        },
+                    ],
+                })));
+                result
+            })
+            .await
+            .clone();
+
+        if result.is_err() {
+            // If loading failed, remove the entry from the cache
+            // after some delay to prevent repeated failed attempts
+            tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                self.cache
+                    .remove_if_async(&key, |v| Arc::ptr_eq(v, &cell))
+                    .await;
+            });
+        }
+
+        result
     }
 
     fn clean(&self) {
