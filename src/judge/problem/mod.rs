@@ -57,16 +57,16 @@ impl ProblemCache {
             // For now, we just return a dummy problem
             let result = Ok(Some(Arc::new(Problem {
                 id: problem_id,
-                memory_limit: 0,
-                instruction_limit: 0,
+                memory_limit: 1024 * 1024 * 128,  // 128 MB
+                instruction_limit: 1_000_000_000, // 1 billion instructions
                 tests: vec![
                     Testcase {
-                        input: "dummy input".into(),
-                        answer: "dummy answer".into(),
+                        input: "1 2".into(),
+                        answer: "3".into(),
                     },
                     Testcase {
-                        input: "dummy input 2".into(),
-                        answer: "dummy answer 2".into(),
+                        input: "4 5".into(),
+                        answer: "9".into(),
                     },
                 ],
             })));

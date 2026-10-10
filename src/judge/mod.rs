@@ -1,11 +1,11 @@
 pub mod checker;
 pub mod compiler;
 pub mod executor;
-pub mod testcase;
+pub mod problem;
 
 use checker::Checker;
 use executor::{ExecuteError, ExecuteResult, Executor};
-use testcase::{Problem, Testcase};
+use problem::{Problem, Testcase};
 
 pub struct Grader<C: Checker, E: Executor> {
     pub checker: C,
