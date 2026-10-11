@@ -1,12 +1,6 @@
 use crate::judge::problem::{FetchResult, Problem, ProblemFetcher, Testcase};
 use async_trait::async_trait;
-use std::{
-    sync::{
-        Arc,
-        atomic::{AtomicIsize, Ordering},
-    },
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 use tokio::{sync::OnceCell, time::sleep};
 
 type CacheEntry = Arc<OnceCell<FetchResult>>;
