@@ -6,6 +6,14 @@ mod compile_executor;
 use crate::judge::executor::Executor;
 use async_trait::async_trait;
 
+pub fn get_compiler(language: jot_proto::judge::v1::Language) -> Box<dyn Compiler> {
+    match language {
+        jot_proto::judge::v1::Language::C => Box::new(c::CCompiler {}),
+        jot_proto::judge::v1::Language::Cpp => Box::new(cpp::CppCompiler {}),
+        _ => panic!("Unsupported language"),
+    }
+}
+
 pub struct CompilerResult {
     pub executor: Box<dyn Executor>,
     pub diagnostics: String,
@@ -20,6 +28,22 @@ pub enum CompilerError {
     RuntimeError(String),
 }
 
+impl CompilerError {
+    pub fn to_string(&self) -> String {
+        match self {
+            CompilerError::TimeLimitExceeded(limit) => format!("Time limit exceeded: {} ms", limit),
+            CompilerError::MemoryLimitExceeded(limit) => {
+                format!("Memory limit exceeded: {} bytes", limit)
+            }
+            CompilerError::BuildArtifactSizeLimitExceeded(limit) => {
+                format!("Build artifact size limit exceeded: {} bytes", limit)
+            }
+            CompilerError::CompilationError(msg) => format!("Compilation error: {}", msg),
+            CompilerError::RuntimeError(msg) => format!("Runtime error: {}", msg),
+        }
+    }
+}
+
 pub struct CompilerResourceLimits {
     pub memory_limit_byte: u64,
     pub time_limit_ms: u64,
@@ -27,10 +51,10 @@ pub struct CompilerResourceLimits {
 }
 
 #[async_trait]
-pub trait Compiler {
+pub trait Compiler: Send {
     // Returns an executor holding the compiled Wasm bytes and any compiler diagnostics.
     async fn compile(
-        &mut self,
+        &self,
         source: &str,
         limits: CompilerResourceLimits,
     ) -> Result<CompilerResult, CompilerError>;

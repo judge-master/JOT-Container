@@ -9,10 +9,10 @@ pub struct CppCompiler;
 #[async_trait]
 impl Compiler for CppCompiler {
     async fn compile(
-        &mut self,
+        &self,
         source: &str,
         limits: CompilerResourceLimits,
-    ) -> Result<(CompilerResult), CompilerError> {
+    ) -> Result<CompilerResult, CompilerError> {
         let args = ["-o", "-", "-std=c++17", "-O2", "-Wall", "-x", "c++", "-"];
 
         let mut compile_executor = LocalCompileExecutor::new(

@@ -1,0 +1,145 @@
+use crate::judge::problem::{Problem, Testcase};
+
+use super::checker::Checker;
+use super::executor::{ExecuteError, ExecuteResult, Executor};
+use std::sync::Arc;
+
+pub struct Grader<C: Checker, E: Executor> {
+    pub checker: C,
+    pub executor: E,
+}
+
+#[derive(Debug)]
+pub enum Verdict {
+    Accepted,
+    WrongAnswer,
+    CompilationError(Option<String>),
+    RuntimeError(Option<String>),
+    TimeLimitExceeded(u64),
+    MemoryLimitExceeded(u64),
+    BuildArtifactLimitExceeded(u64),
+    SystemError(Option<String>),
+}
+#[derive(Debug)]
+pub struct GradeResult {
+    pub verdict: Verdict,
+    pub memory_used: u64,
+    pub instruction_count: u64,
+}
+
+impl<C: Checker, E: Executor> Grader<C, E> {
+    pub fn new(checker: C, executor: E) -> Self {
+        Self { checker, executor }
+    }
+    pub async fn grade(&mut self, problem: Problem) -> GradeResult {
+        let checker = &mut self.checker;
+        let executor = &mut self.executor;
+
+        let mut grade_result = GradeResult {
+            verdict: Verdict::SystemError(Some("Unknown error".to_string())),
+            memory_used: 0,
+            instruction_count: 0,
+        };
+
+        for (idx, test) in problem.tests.iter().enumerate() {
+            let res = executor
+                .execute(&test.input, problem.memory_limit, problem.instruction_limit)
+                .await;
+            match res {
+                Ok(ExecuteResult {
+                    output,
+                    memory_used,
+                    instruction_count,
+                }) => {
+                    grade_result.memory_used = grade_result.memory_used.max(memory_used);
+                    grade_result.instruction_count =
+                        grade_result.instruction_count.max(instruction_count);
+
+                    if !checker.check(&output, &test.answer).await.unwrap_or(false) {
+                        grade_result.verdict = Verdict::WrongAnswer;
+                        return grade_result;
+                    }
+                }
+                Err(ExecuteError::TimeLimitExceeded(time)) => {
+                    grade_result.verdict = Verdict::TimeLimitExceeded(time);
+                    return grade_result;
+                }
+                Err(ExecuteError::MemoryLimitExceeded(memory)) => {
+                    grade_result.verdict = Verdict::MemoryLimitExceeded(memory);
+                    return grade_result;
+                }
+                Err(ExecuteError::RuntimeError { reason }) => {
+                    grade_result.verdict = Verdict::RuntimeError(reason);
+                    return grade_result;
+                }
+                Err(ExecuteError::CompilationError { message }) => {
+                    grade_result.verdict = Verdict::CompilationError(message);
+                    return grade_result;
+                }
+            }
+        }
+
+        grade_result.verdict = Verdict::Accepted;
+        grade_result
+    }
+}
+
+#[tokio::test]
+async fn test_grader() {
+    use super::checker::lcmp_checker::LcmpChecker;
+    use super::executor::aplusb_executor::APlusBExecutor;
+    use std::sync::Arc;
+
+    let problem = Problem {
+        id: 1,
+        tests: vec![
+            Testcase {
+                input: "1 2".into(),
+                answer: "3".into(),
+            },
+            Testcase {
+                input: "100 200".into(),
+                answer: "300".into(),
+            },
+        ],
+        memory_limit: 1024 * 1024,
+        instruction_limit: 100000000,
+    };
+
+    let mut grader = Grader::new(LcmpChecker, APlusBExecutor);
+    let result = grader.grade(problem).await;
+
+    assert_eq!(matches!(result.verdict, Verdict::Accepted), true);
+}
+
+#[tokio::test]
+async fn test_grader_instruction_limit() {
+    use super::checker::lcmp_checker::LcmpChecker;
+    use super::executor::aplusb_executor::APlusBExecutor;
+    use std::sync::Arc;
+
+    let problem = Problem {
+        id: 1,
+        tests: vec![
+            Testcase {
+                input: "1 2".into(),
+                answer: "3".into(),
+            },
+            Testcase {
+                input: "100 200".into(),
+                answer: "300".into(),
+            },
+        ],
+        memory_limit: 1024 * 1024,
+        instruction_limit: 1,
+    };
+
+    let mut grader = Grader::new(LcmpChecker, APlusBExecutor);
+    let result = grader.grade(problem).await;
+
+    if let Verdict::TimeLimitExceeded(_) = result.verdict {
+        return;
+    } else {
+        panic!("Expected TimeLimitExceeded, got {:?}", result.verdict);
+    }
+}

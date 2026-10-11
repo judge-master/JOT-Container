@@ -1,8 +1,8 @@
 use std::{net::TcpListener, time::Duration};
 
 use jot_proto::judge::v1::{
-    JudgeEvent, JudgeRequest, JudgeResult, Language, ResourceLimits, Verdict, judge_event::Payload,
-    judge_service_client::JudgeServiceClient,
+    JudgeEvent, JudgePhase, JudgeRequest, JudgeResult, Language, ResourceLimits, Verdict,
+    judge_event::Payload, judge_service_client::JudgeServiceClient,
 };
 use tokio::process::{Child, Command};
 use tonic::transport::{Channel, Endpoint};
@@ -10,6 +10,7 @@ use tonic::transport::{Channel, Endpoint};
 fn request(request_id: i64) -> JudgeRequest {
     JudgeRequest {
         request_id,
+        problem_id: 1,
         language: Language::Cpp as i32,
         source_code: r#"#include <iostream>
 int main() {
@@ -92,11 +93,83 @@ fn terminal_result(events: &[JudgeEvent]) -> &JudgeResult {
     }
 }
 
+fn assert_progress_phases(events: &[JudgeEvent], expected: &[JudgePhase]) {
+    let phases = events
+        .iter()
+        .filter_map(|event| match &event.payload {
+            Some(Payload::Progress(progress)) => {
+                Some(JudgePhase::try_from(progress.phase).unwrap())
+            }
+            Some(Payload::Result(_)) => None,
+            None => panic!("event had no payload: {event:?}"),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(phases, expected);
+}
+
 #[tokio::test]
-async fn judge_rpc_stream_returns_terminal_result() {
+async fn judge_rpc_stream_ends_with_a_terminal_result() {
     let (mut server, mut client) = start_server().await;
     let events = judge_events(&mut client, request(1)).await;
     assert!(events.iter().all(|event| event.request_id == 1));
-    assert_eq!(terminal_result(&events).verdict(), Verdict::Accepted);
+    let result = terminal_result(&events);
+    match result.verdict() {
+        Verdict::Accepted => assert_progress_phases(
+            &events,
+            &[
+                JudgePhase::Received,
+                JudgePhase::Compiling,
+                JudgePhase::FetchingCases,
+                JudgePhase::Running,
+            ],
+        ),
+        Verdict::CompilationError => {
+            assert_progress_phases(&events, &[JudgePhase::Received, JudgePhase::Compiling]);
+            assert!(!result.compiler_diagnostics.is_empty());
+        }
+        verdict => panic!("unexpected verdict: {verdict:?}"),
+    }
+    server.kill().await.unwrap();
+}
+
+#[tokio::test]
+async fn judge_rpc_stream_returns_compilation_error_as_terminal_result() {
+    let (mut server, mut client) = start_server().await;
+    let mut invalid_request = request(2);
+    invalid_request.source_code = "this is not valid C++".into();
+
+    let events = judge_events(&mut client, invalid_request).await;
+    assert!(events.iter().all(|event| event.request_id == 2));
+    assert_progress_phases(&events, &[JudgePhase::Received, JudgePhase::Compiling]);
+    let result = terminal_result(&events);
+    assert_eq!(result.verdict(), Verdict::CompilationError);
+    assert!(!result.compiler_diagnostics.is_empty());
+    server.kill().await.unwrap();
+}
+
+#[tokio::test]
+async fn judge_queue_streams_concurrent_requests_with_independent_terminal_results() {
+    let (mut server, client) = start_server().await;
+    let mut tasks = tokio::task::JoinSet::new();
+
+    for request_id in 10..13 {
+        let mut client = client.clone();
+        tasks.spawn(async move {
+            (
+                request_id,
+                judge_events(&mut client, request(request_id)).await,
+            )
+        });
+    }
+
+    while let Some(task) = tasks.join_next().await {
+        let (request_id, events) = task.expect("judge request task failed");
+        assert!(events.iter().all(|event| event.request_id == request_id));
+        let result = terminal_result(&events);
+        assert!(matches!(
+            result.verdict(),
+            Verdict::Accepted | Verdict::CompilationError
+        ));
+    }
     server.kill().await.unwrap();
 }
