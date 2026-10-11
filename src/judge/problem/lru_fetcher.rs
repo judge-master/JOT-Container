@@ -4,21 +4,21 @@ use std::{sync::Arc, time::Duration};
 use tokio::{sync::OnceCell, time::sleep};
 
 type CacheEntry = Arc<OnceCell<FetchResult>>;
+#[derive(Clone)]
 pub struct LruProblemFetcher {
-    cache: scc::HashCache<i64, CacheEntry>,
+    cache: Arc<scc::HashCache<i64, CacheEntry>>,
 }
 
 impl LruProblemFetcher {
     pub fn new() -> Self {
         Self {
-            cache: scc::HashCache::new(),
+            cache: Arc::new(scc::HashCache::new()),
         }
     }
 }
 #[async_trait]
 impl ProblemFetcher for LruProblemFetcher {
-    // it works only for Arc<Self>
-    fn preload(self: &Arc<Self>, problem_id: i64) {
+    fn preload(&self, problem_id: i64) {
         // Preload all testcases for the given problem
         // This is a placeholder implementation
         let self_ = self.clone();
@@ -26,7 +26,7 @@ impl ProblemFetcher for LruProblemFetcher {
             let _ = self_.get(problem_id).await;
         });
     }
-    async fn get(self: &Arc<Self>, problem_id: i64) -> FetchResult {
+    async fn get(&self, problem_id: i64) -> FetchResult {
         let key = problem_id;
         // let current_cache_size = self.current_cache_size.clone();
         let cell = self
