@@ -25,8 +25,8 @@ pub type FetchResult = Result<Option<Arc<Problem>>, String>;
 
 #[async_trait]
 pub trait ProblemFetcher {
-    fn preload(self: Arc<Self>, problem_id: i64);
-    async fn get(self: Arc<Self>, problem_id: i64) -> FetchResult;
+    fn preload(self: &Arc<Self>, problem_id: i64);
+    async fn get(self: &Arc<Self>, problem_id: i64) -> FetchResult;
 }
 
 pub mod lru_fetcher;
