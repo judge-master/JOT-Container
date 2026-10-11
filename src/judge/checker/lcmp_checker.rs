@@ -17,7 +17,7 @@ impl LcmpChecker {
 #[async_trait]
 impl Checker for LcmpChecker {
     async fn check(
-        &mut self,
+        &self,
         output: &str,
         answer: &str,
     ) -> Result<bool, Box<dyn std::error::Error>> {

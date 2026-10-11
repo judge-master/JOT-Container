@@ -47,7 +47,7 @@ impl WasiView for MyState {
 #[async_trait]
 impl Executor for WasmExecutor {
     async fn execute(
-        &mut self,
+        &self,
         input: &str,
         memory_limit: u64,
         time_limit: u64,

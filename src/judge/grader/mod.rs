@@ -31,9 +31,9 @@ impl<C: Checker, E: Executor> Grader<C, E> {
     pub fn new(checker: C, executor: E) -> Self {
         Self { checker, executor }
     }
-    pub async fn grade(&mut self, problem: Problem) -> GradeResult {
-        let checker = &mut self.checker;
-        let executor = &mut self.executor;
+    pub async fn grade(&self, problem: &Problem) -> GradeResult {
+        let checker = &self.checker;
+        let executor = &self.executor;
 
         let mut grade_result = GradeResult {
             verdict: Verdict::SystemError(Some("Unknown error".to_string())),
@@ -107,7 +107,7 @@ async fn test_grader() {
     };
 
     let mut grader = Grader::new(LcmpChecker, APlusBExecutor);
-    let result = grader.grade(problem).await;
+    let result = grader.grade(&problem).await;
 
     assert_eq!(matches!(result.verdict, Verdict::Accepted), true);
 }
@@ -135,7 +135,7 @@ async fn test_grader_instruction_limit() {
     };
 
     let mut grader = Grader::new(LcmpChecker, APlusBExecutor);
-    let result = grader.grade(problem).await;
+    let result = grader.grade(&problem).await;
 
     if let Verdict::TimeLimitExceeded(_) = result.verdict {
         return;
