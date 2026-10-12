@@ -186,3 +186,39 @@ async fn test_wasm_mle() {
         .expect("Runtime error");
     assert_eq!(res.output.trim(), "3");
 }
+
+#[tokio::test]
+#[should_panic = "Runtime error"]
+async fn test_wasm_sleep() {
+    // CCompiler를 사용하지만 WasmExecutor의 테스트를 위한 코드이기 때문에 여기다가 작성함
+
+    use crate::judge::compiler::CompilerResourceLimits;
+    use crate::judge::compiler::{Compiler, c::CCompiler};
+
+    let compiler = CCompiler;
+    let res = compiler
+        .compile(
+            r#"
+        #include <stdio.h>
+        #include <unistd.h>
+        int main() {
+            sleep(10);
+            printf("Hello, World!\n");
+            return 0;
+        }
+        "#,
+            CompilerResourceLimits {
+                time_limit_ms: 10_000,
+                memory_limit_byte: 1024 * 1024 * 128,
+                build_artifact_size_limit_byte: 1024 * 1024 * 128,
+            },
+        )
+        .await
+        .expect("Compilation failed");
+
+    let mut executor = res.executor;
+    executor
+        .execute("", 100000000, 100000000)
+        .await
+        .expect("Runtime error");
+}
