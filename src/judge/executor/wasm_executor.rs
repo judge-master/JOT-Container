@@ -106,7 +106,12 @@ impl Executor for WasmExecutor {
                 reason: Some("linker.module() failed".into()),
             })?;
 
-        let instance = linker.instantiate(&mut store, &module).unwrap();
+        let instance =
+            linker
+                .instantiate(&mut store, &module)
+                .map_err(|_| ExecuteError::RuntimeError {
+                    reason: Some("linker.instantiate() failed".into()),
+                })?;
 
         let default =
             instance

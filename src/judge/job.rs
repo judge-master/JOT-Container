@@ -74,7 +74,7 @@ impl JudgeJob {
         let compiler = compiler::get_compiler(self.request.language());
         // Compile the source code
 
-        let mut compiler_result = match compiler
+        let compiler_result = match compiler
             .compile(
                 &self.request.source_code,
                 compiler::CompilerResourceLimits {
@@ -171,10 +171,7 @@ impl JudgeJob {
 
         // todo: grader에 stream 기능 만들어야 함
         let grader = Grader::new(LcmpChecker::new(), compiler_result.executor);
-        let limits = self
-            .request
-            .limits
-            .ok_or("Resource limits not provided in the request")?;
+
         let grade_result = grader
             .grade(Problem {
                 memory_limit: limits.memory_bytes,
