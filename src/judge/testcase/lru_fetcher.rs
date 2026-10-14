@@ -18,17 +18,15 @@ impl LruTestcaseFetcher {
 }
 #[async_trait]
 impl TestcaseFetcher for LruTestcaseFetcher {
-    fn preload(&self, problem_id: i64) {
-        // Preload all testcases for the given problem
-        // This is a placeholder implementation
+    fn preload(&self, id: i64) {
+        // Preload the testcases
         let self_ = self.clone();
         tokio::spawn(async move {
-            let _ = self_.get(problem_id).await;
+            let _ = self_.get(id).await;
         });
     }
-    async fn get(&self, problem_id: i64) -> FetchResult {
-        let key = problem_id;
-        // let current_cache_size = self.current_cache_size.clone();
+    async fn get(&self, id: i64) -> FetchResult {
+        let key = id;
         let cell = self
             .cache
             .entry_async(key)
@@ -39,8 +37,8 @@ impl TestcaseFetcher for LruTestcaseFetcher {
         let result = cell
             .get_or_init(|| async {
                 sleep(Duration::from_millis(50)).await;
-                // Load the testcase from the database or filesystem
-                // For now, we just return a dummy problem
+                // Load the testcases from the S3 database
+                // For now, we just return a dummy testcases
                 let result = Ok(Some(Arc::new(vec![
                     Testcase {
                         input: "1 2".into(),
@@ -57,8 +55,8 @@ impl TestcaseFetcher for LruTestcaseFetcher {
             .clone();
 
         if result.is_err() {
-            // If loading failed, remove the entry from the cache
-            // after some delay to prevent repeated failed attempts
+            // If loading failed, remove the entry from the cache after some delay
+            // to prevent repeated failed attempts
             let self_ = self.clone();
             tokio::spawn(async move {
                 tokio::time::sleep(Duration::from_secs(5)).await;
