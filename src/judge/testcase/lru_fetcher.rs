@@ -6,7 +6,7 @@ use tokio::{sync::OnceCell, time::sleep};
 type CacheEntry = Arc<OnceCell<FetchResult>>;
 #[derive(Clone)]
 pub struct LruTestcaseFetcher {
-    cache: Arc<scc::HashCache<i64, CacheEntry>>,
+    cache: Arc<scc::HashCache<String, CacheEntry>>,
 }
 
 impl LruTestcaseFetcher {
@@ -14,6 +14,26 @@ impl LruTestcaseFetcher {
         Self {
             cache: Arc::new(scc::HashCache::new()),
         }
+    }
+    async fn get_e_tag(id: i64) -> Result<String, String> {
+        // For now, we just return a dummy e_tag
+        Ok(format!("problem-{}", id))
+    }
+    async fn get_testcases_from_s3(id: i64) -> FetchResult {
+        // Simulate a network delay
+        sleep(Duration::from_millis(50)).await;
+
+        // For now, we just return a dummy testcases
+        Ok(Some(Arc::new(vec![
+            Testcase {
+                input: "1 2".into(),
+                answer: "3".into(),
+            },
+            Testcase {
+                input: "4 5".into(),
+                answer: "9".into(),
+            },
+        ])))
     }
 }
 #[async_trait]
@@ -26,31 +46,18 @@ impl TestcaseFetcher for LruTestcaseFetcher {
         });
     }
     async fn get(&self, id: i64) -> FetchResult {
-        let key = id;
+        let key = Self::get_e_tag(id).await?;
+
         let cell = self
             .cache
-            .entry_async(key)
+            .entry_async(key.clone())
             .await
             .or_put_with(|| Arc::new(OnceCell::new()))
             .1
             .clone();
+
         let result = cell
-            .get_or_init(|| async {
-                sleep(Duration::from_millis(50)).await;
-                // Load the testcases from the S3 database
-                // For now, we just return a dummy testcases
-                let result = Ok(Some(Arc::new(vec![
-                    Testcase {
-                        input: "1 2".into(),
-                        answer: "3".into(),
-                    },
-                    Testcase {
-                        input: "4 5".into(),
-                        answer: "9".into(),
-                    },
-                ])));
-                result
-            })
+            .get_or_init(|| async move { Self::get_testcases_from_s3(id).await })
             .await
             .clone();
 
