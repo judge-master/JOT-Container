@@ -16,7 +16,7 @@ impl APlusBExecutor {
 #[async_trait]
 impl Executor for APlusBExecutor {
     async fn execute(
-        &mut self,
+        &self,
         input: &str,
         memory_limit: u64,
         time_limit: u64,

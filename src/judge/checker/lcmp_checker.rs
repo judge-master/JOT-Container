@@ -16,11 +16,7 @@ impl LcmpChecker {
 
 #[async_trait]
 impl Checker for LcmpChecker {
-    async fn check(
-        &mut self,
-        output: &str,
-        answer: &str,
-    ) -> Result<bool, Box<dyn std::error::Error>> {
+    async fn check(&self, output: &str, answer: &str) -> Result<bool, Box<dyn std::error::Error>> {
         let output = output.split('\n');
         let answer = answer.split('\n');
 

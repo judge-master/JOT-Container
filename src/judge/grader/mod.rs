@@ -1,19 +1,8 @@
+use crate::judge::{Problem, testcase::Testcase};
+
 use super::checker::Checker;
 use super::executor::{ExecuteError, ExecuteResult, Executor};
 use std::sync::Arc;
-
-// Arc is used for efficient caching between multiple threads
-pub struct Testcase {
-    pub input: Arc<str>,
-    pub answer: Arc<str>,
-}
-
-pub struct Problem {
-    pub id: String,
-    pub memory_limit: u64,
-    pub instruction_limit: u64,
-    pub tests: Vec<Testcase>,
-}
 
 pub struct Grader<C: Checker, E: Executor> {
     pub checker: C,
@@ -42,9 +31,9 @@ impl<C: Checker, E: Executor> Grader<C, E> {
     pub fn new(checker: C, executor: E) -> Self {
         Self { checker, executor }
     }
-    pub async fn grade(&mut self, problem: Problem) -> GradeResult {
-        let checker = &mut self.checker;
-        let executor = &mut self.executor;
+    pub async fn grade(&self, problem: Problem) -> GradeResult {
+        let checker = &self.checker;
+        let executor = &self.executor;
 
         let mut grade_result = GradeResult {
             verdict: Verdict::SystemError(Some("Unknown error".to_string())),
@@ -102,17 +91,16 @@ async fn test_grader() {
     use std::sync::Arc;
 
     let problem = Problem {
-        id: "1".into(),
-        tests: vec![
+        tests: Arc::new(vec![
             Testcase {
-                input: Arc::from("1 2"),
-                answer: Arc::from("3"),
+                input: "1 2".into(),
+                answer: "3".into(),
             },
             Testcase {
-                input: Arc::from("100 200"),
-                answer: Arc::from("300"),
+                input: "100 200".into(),
+                answer: "300".into(),
             },
-        ],
+        ]),
         memory_limit: 1024 * 1024,
         instruction_limit: 100000000,
     };
@@ -130,17 +118,16 @@ async fn test_grader_instruction_limit() {
     use std::sync::Arc;
 
     let problem = Problem {
-        id: "1".into(),
-        tests: vec![
+        tests: Arc::new(vec![
             Testcase {
-                input: Arc::from("1 2"),
-                answer: Arc::from("3"),
+                input: "1 2".into(),
+                answer: "3".into(),
             },
             Testcase {
-                input: Arc::from("100 200"),
-                answer: Arc::from("300"),
+                input: "100 200".into(),
+                answer: "300".into(),
             },
-        ],
+        ]),
         memory_limit: 1024 * 1024,
         instruction_limit: 1,
     };

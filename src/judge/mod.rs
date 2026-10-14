@@ -1,11 +1,19 @@
-use crate::judge::job::JudgeJob;
+use std::sync::Arc;
+
+use crate::judge::{job::JudgeJob, testcase::Testcases};
 
 pub mod checker;
 pub mod compiler;
 pub mod executor;
 pub mod grader;
-
 pub mod job;
+pub mod testcase;
+
+pub struct Problem {
+    pub memory_limit: u64,
+    pub instruction_limit: u64,
+    pub tests: Arc<Testcases>,
+}
 
 pub struct JudgeQueue {
     job_queue_sender: tokio::sync::mpsc::Sender<JudgeJob>,
