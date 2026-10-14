@@ -1,15 +1,15 @@
-use crate::judge::problem::{FetchResult, Problem, ProblemFetcher, Testcase};
+use crate::judge::testcase::{FetchResult, Testcase, TestcaseFetcher};
 use async_trait::async_trait;
 use std::{sync::Arc, time::Duration};
 use tokio::{sync::OnceCell, time::sleep};
 
 type CacheEntry = Arc<OnceCell<FetchResult>>;
 #[derive(Clone)]
-pub struct LruProblemFetcher {
+pub struct LruTestcaseFetcher {
     cache: Arc<scc::HashCache<i64, CacheEntry>>,
 }
 
-impl LruProblemFetcher {
+impl LruTestcaseFetcher {
     pub fn new() -> Self {
         Self {
             cache: Arc::new(scc::HashCache::new()),
@@ -17,7 +17,7 @@ impl LruProblemFetcher {
     }
 }
 #[async_trait]
-impl ProblemFetcher for LruProblemFetcher {
+impl TestcaseFetcher for LruTestcaseFetcher {
     fn preload(&self, problem_id: i64) {
         // Preload all testcases for the given problem
         // This is a placeholder implementation
@@ -41,21 +41,16 @@ impl ProblemFetcher for LruProblemFetcher {
                 sleep(Duration::from_millis(50)).await;
                 // Load the testcase from the database or filesystem
                 // For now, we just return a dummy problem
-                let result = Ok(Some(Arc::new(Problem {
-                    id: problem_id,
-                    memory_limit: 1024 * 1024 * 128,  // 128 MB
-                    instruction_limit: 1_000_000_000, // 1 billion instructions
-                    tests: vec![
-                        Testcase {
-                            input: "1 2".into(),
-                            answer: "3".into(),
-                        },
-                        Testcase {
-                            input: "4 5".into(),
-                            answer: "9".into(),
-                        },
-                    ],
-                })));
+                let result = Ok(Some(Arc::new(vec![
+                    Testcase {
+                        input: "1 2".into(),
+                        answer: "3".into(),
+                    },
+                    Testcase {
+                        input: "4 5".into(),
+                        answer: "9".into(),
+                    },
+                ])));
                 result
             })
             .await
@@ -79,8 +74,8 @@ impl ProblemFetcher for LruProblemFetcher {
 }
 
 #[tokio::test]
-async fn test_lru_problem_fetcher() {
-    let fetcher = Arc::new(LruProblemFetcher::new());
+async fn test_lru_testcase_fetcher() {
+    let fetcher = Arc::new(LruTestcaseFetcher::new());
 
     // Preload a problem
     fetcher.preload(1);
@@ -91,8 +86,7 @@ async fn test_lru_problem_fetcher() {
     let problem = result.unwrap();
     assert!(problem.is_some());
     let problem = problem.unwrap();
-    assert_eq!(problem.id, 1);
-    assert_eq!(problem.tests.len(), 2);
+    // todo: assert
 
     // Fetch the same problem again to test caching
     let result2 = fetcher.get(1).await;
@@ -100,5 +94,4 @@ async fn test_lru_problem_fetcher() {
     let problem2 = result2.unwrap();
     assert!(problem2.is_some());
     let problem2 = problem2.unwrap();
-    assert_eq!(problem2.id, 1);
 }

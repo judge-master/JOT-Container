@@ -1,4 +1,4 @@
-use crate::judge::problem::{Problem, Testcase};
+use crate::judge::{Problem, testcase::Testcase};
 
 use super::checker::Checker;
 use super::executor::{ExecuteError, ExecuteResult, Executor};
@@ -31,7 +31,7 @@ impl<C: Checker, E: Executor> Grader<C, E> {
     pub fn new(checker: C, executor: E) -> Self {
         Self { checker, executor }
     }
-    pub async fn grade(&self, problem: &Problem) -> GradeResult {
+    pub async fn grade(&self, problem: Problem) -> GradeResult {
         let checker = &self.checker;
         let executor = &self.executor;
 
@@ -92,7 +92,7 @@ async fn test_grader() {
 
     let problem = Problem {
         id: 1,
-        tests: vec![
+        tests: Arc::new(vec![
             Testcase {
                 input: "1 2".into(),
                 answer: "3".into(),
@@ -101,13 +101,13 @@ async fn test_grader() {
                 input: "100 200".into(),
                 answer: "300".into(),
             },
-        ],
+        ]),
         memory_limit: 1024 * 1024,
         instruction_limit: 100000000,
     };
 
     let mut grader = Grader::new(LcmpChecker, APlusBExecutor);
-    let result = grader.grade(&problem).await;
+    let result = grader.grade(problem).await;
 
     assert_eq!(matches!(result.verdict, Verdict::Accepted), true);
 }
@@ -120,7 +120,7 @@ async fn test_grader_instruction_limit() {
 
     let problem = Problem {
         id: 1,
-        tests: vec![
+        tests: Arc::new(vec![
             Testcase {
                 input: "1 2".into(),
                 answer: "3".into(),
@@ -129,13 +129,13 @@ async fn test_grader_instruction_limit() {
                 input: "100 200".into(),
                 answer: "300".into(),
             },
-        ],
+        ]),
         memory_limit: 1024 * 1024,
         instruction_limit: 1,
     };
 
     let mut grader = Grader::new(LcmpChecker, APlusBExecutor);
-    let result = grader.grade(&problem).await;
+    let result = grader.grade(problem).await;
 
     if let Verdict::TimeLimitExceeded(_) = result.verdict {
         return;

@@ -1,18 +1,18 @@
 use crate::judge::{
+    Problem,
     checker::lcmp_checker::LcmpChecker,
     compiler,
     grader::{self, Grader},
-    problem::{self, ProblemFetcher, lru_fetcher::LruProblemFetcher},
+    testcase::{self, TestcaseFetcher, lru_fetcher::LruTestcaseFetcher},
 };
 use jot_proto::judge::v1::JudgeEvent;
 use lazy_static::lazy_static;
-use std::sync::Arc;
 
 pub type Error = Box<dyn std::error::Error + Send + Sync>;
 
 // 일단 임시로 static으로 해놨는데 나중에 config등을 이용해서 더 좋게 바꿀 수 있을 듯
 lazy_static! {
-    static ref PROBLEM_FETCHER: LruProblemFetcher = LruProblemFetcher::new();
+    static ref TESTCASE_FETCHER: LruTestcaseFetcher = LruTestcaseFetcher::new();
 }
 pub struct JudgeJob {
     request: jot_proto::judge::v1::JudgeRequest,
@@ -118,10 +118,10 @@ impl JudgeJob {
             })
             .await?;
 
-        let Ok(problem) = PROBLEM_FETCHER.get(self.request.problem_id).await else {
+        let Ok(testcases) = TESTCASE_FETCHER.get(self.request.problem_id).await else {
             let judge_result = jot_proto::judge::v1::JudgeResult {
                 verdict: jot_proto::judge::v1::Verdict::SystemError as i32,
-                error_message: Some("Failed to fetch problem".into()),
+                error_message: Some("Failed to fetch testcases".into()),
                 ..Default::default()
             };
             let event = JudgeEvent {
@@ -133,10 +133,10 @@ impl JudgeJob {
             self.response_channel.send(event).await?;
             return Ok(());
         };
-        let Some(problem) = problem else {
+        let Some(testcases) = testcases else {
             let judge_result = jot_proto::judge::v1::JudgeResult {
                 verdict: jot_proto::judge::v1::Verdict::SystemError as i32,
-                error_message: Some("Problem not found".into()),
+                error_message: Some("Testcases not found".into()),
                 ..Default::default()
             };
             let event = JudgeEvent {
@@ -171,7 +171,18 @@ impl JudgeJob {
 
         // todo: grader에 stream 기능 만들어야 함
         let grader = Grader::new(LcmpChecker::new(), compiler_result.executor);
-        let grade_result = grader.grade(&problem).await;
+        let limits = self
+            .request
+            .limits
+            .ok_or("Resource limits not provided in the request")?;
+        let grade_result = grader
+            .grade(Problem {
+                id: 1,
+                memory_limit: limits.memory_bytes,
+                instruction_limit: limits.instruction_count,
+                tests: testcases,
+            })
+            .await;
 
         let (verdict, error) = match grade_result.verdict {
             grader::Verdict::Accepted => (jot_proto::judge::v1::Verdict::Accepted, None),
