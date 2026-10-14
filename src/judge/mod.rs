@@ -10,7 +10,6 @@ pub mod job;
 pub mod testcase;
 
 pub struct Problem {
-    pub id: i64,
     pub memory_limit: u64,
     pub instruction_limit: u64,
     pub tests: Arc<Testcases>,

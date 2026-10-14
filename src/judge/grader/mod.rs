@@ -91,7 +91,6 @@ async fn test_grader() {
     use std::sync::Arc;
 
     let problem = Problem {
-        id: 1,
         tests: Arc::new(vec![
             Testcase {
                 input: "1 2".into(),
@@ -119,7 +118,6 @@ async fn test_grader_instruction_limit() {
     use std::sync::Arc;
 
     let problem = Problem {
-        id: 1,
         tests: Arc::new(vec![
             Testcase {
                 input: "1 2".into(),

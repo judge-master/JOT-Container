@@ -177,7 +177,6 @@ impl JudgeJob {
             .ok_or("Resource limits not provided in the request")?;
         let grade_result = grader
             .grade(Problem {
-                id: 1,
                 memory_limit: limits.memory_bytes,
                 instruction_limit: limits.instruction_count,
                 tests: testcases,
