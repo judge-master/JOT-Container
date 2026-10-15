@@ -21,27 +21,24 @@ lazy_static! {
     .expect("Failed to initialize Wasmtime engine");
 }
 
-// 1. 항상 0 또는 특정 에러만 반환하는 커스텀 Wall Clock 구현
+// this clock always returns same value to prevent non-deterministic codes depends on system clock
+// unfortunately this custom clock doesn't prevent sleep()
+// but it can prevent something like non-deterministic hashing based on clock
 struct DeniedClock;
 impl HostWallClock for DeniedClock {
     fn now(&self) -> std::time::Duration {
-        // println!("DeniedClock::now() called");
-        std::time::Duration::from_secs(0) // 시간을 항상 1970년 1월 1일로 고정
+        std::time::Duration::from_secs(0)
     }
     fn resolution(&self) -> std::time::Duration {
-        // println!("DeniedClock::resolution() called");
         std::time::Duration::from_nanos(1)
     }
 }
-// 1. 항상 0 또는 특정 에러만 반환하는 커스텀 Monotonic Clock 구현
 struct DeniedMonotonicClock;
 impl HostMonotonicClock for DeniedMonotonicClock {
     fn now(&self) -> u64 {
-        // println!("DeniedMonotonicClock::now() called");
         0
     }
     fn resolution(&self) -> u64 {
-        // println!("DeniedMonotonicClock::resolution() called");
         1
     }
 }
@@ -93,8 +90,11 @@ impl Executor for WasmExecutor {
             });
         }
 
-        // 일반 WASI 함수를 등록한 뒤,
-        // instantiate_pre / instantiate를 호출하기 전에 실행합니다.
+        // shadow implementation of `poll_oneoff` to preventing sleeping
+        // it immediately traps the instance if it tries to call poll_oneoff
+        // it can prevent something like sleep() on <unistd.h>
+        // but it may have side effects about input/output
+        // currently our input stream immediately returns some value or EOF, so this works fine
         linker.allow_shadowing(true);
 
         linker
