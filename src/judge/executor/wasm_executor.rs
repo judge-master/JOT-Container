@@ -270,3 +270,38 @@ async fn test_wasm_sleep() {
         .await
         .expect("Runtime error");
 }
+
+// WASI의 wall clock과 monotonic clock이 항상 0을 반환하도록 구현했기 때문에, time() 함수는 항상 0을 반환해야 함
+#[tokio::test]
+async fn test_wasm_time() {
+    use crate::judge::compiler::CompilerResourceLimits;
+    use crate::judge::compiler::{Compiler, c::CCompiler};
+
+    let compiler = CCompiler;
+    let res = compiler
+        .compile(
+            r#"
+        #include <stdio.h>
+        #include <time.h>
+        int main() {
+            printf("current time : %ld\n", time(NULL));
+            return 0;
+        }
+        "#,
+            CompilerResourceLimits {
+                time_limit_ms: 10_000,
+                memory_limit_byte: 1024 * 1024 * 128,
+                build_artifact_size_limit_byte: 1024 * 1024 * 128,
+            },
+        )
+        .await
+        .expect("Compilation failed");
+
+    let mut executor = res.executor;
+    let result = executor
+        .execute("", 100000000, 100000000)
+        .await
+        .expect("Runtime error");
+
+    assert_eq!(result.output.trim(), "current time : 0");
+}
