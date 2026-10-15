@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use lazy_static::lazy_static;
 use std::sync::Arc;
 use wasmtime::{Config, Engine, Linker, Module, Store, StoreLimits, StoreLimitsBuilder, Trap};
+use wasmtime_wasi::{HostMonotonicClock, HostWallClock, WasiCtxBuilder};
 use wasmtime_wasi::{
     WasiCtx, WasiCtxView, WasiView,
     p1::WasiP1Ctx,
@@ -18,6 +19,31 @@ lazy_static! {
             .wasm_exceptions(true)
     )
     .expect("Failed to initialize Wasmtime engine");
+}
+
+// 1. 항상 0 또는 특정 에러만 반환하는 커스텀 Wall Clock 구현
+struct DeniedClock;
+impl HostWallClock for DeniedClock {
+    fn now(&self) -> std::time::Duration {
+        // println!("DeniedClock::now() called");
+        std::time::Duration::from_secs(0) // 시간을 항상 1970년 1월 1일로 고정
+    }
+    fn resolution(&self) -> std::time::Duration {
+        // println!("DeniedClock::resolution() called");
+        std::time::Duration::from_nanos(1)
+    }
+}
+// 1. 항상 0 또는 특정 에러만 반환하는 커스텀 Monotonic Clock 구현
+struct DeniedMonotonicClock;
+impl HostMonotonicClock for DeniedMonotonicClock {
+    fn now(&self) -> u64 {
+        // println!("DeniedMonotonicClock::now() called");
+        0
+    }
+    fn resolution(&self) -> u64 {
+        // println!("DeniedMonotonicClock::resolution() called");
+        1
+    }
 }
 
 pub struct WasmExecutor {
@@ -67,6 +93,26 @@ impl Executor for WasmExecutor {
             });
         }
 
+        // 일반 WASI 함수를 등록한 뒤,
+        // instantiate_pre / instantiate를 호출하기 전에 실행합니다.
+        linker.allow_shadowing(true);
+
+        linker
+            .func_wrap(
+                "wasi_snapshot_preview1",
+                "poll_oneoff",
+                |_in_ptr: i32,
+                 _out_ptr: i32,
+                 _nsubscriptions: i32,
+                 _nevents_ptr: i32|
+                 -> wasmtime::Result<i32> {
+                    Err(wasmtime::Error::msg("poll_oneoff is disabled"))
+                },
+            )
+            .map_err(|_| ExecuteError::RuntimeError {
+                reason: Some("linker.func_wrap() failed".into()),
+            })?;
+
         let input = String::from(input);
 
         let memory_input = MemoryInputPipe::new(input);
@@ -78,6 +124,8 @@ impl Executor for WasmExecutor {
             .stdout(memory_output.clone())
             .stderr(memory_error_output.clone())
             .stdin(memory_input)
+            .wall_clock(DeniedClock)
+            .monotonic_clock(DeniedMonotonicClock)
             .arg("StringExecutor")
             .build_p1();
 
