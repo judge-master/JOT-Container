@@ -1,3 +1,5 @@
+use tokio::sync::mpsc;
+
 use crate::judge::{Problem, testcase::Testcase};
 
 use super::checker::Checker;
@@ -27,7 +29,16 @@ pub struct GradeResult {
     pub instruction_count: u64,
 }
 
-impl<C: Checker, E: Executor> Grader<C, E> {
+#[derive(Debug)]
+pub enum GradeStreamData {
+    Result(GradeResult),
+    Progress {
+        completed_cases: i32,
+        total_cases: i32,
+    },
+}
+
+impl<C: Checker + 'static, E: Executor + 'static> Grader<C, E> {
     pub fn new(checker: C, executor: E) -> Self {
         Self { checker, executor }
     }
@@ -81,6 +92,93 @@ impl<C: Checker, E: Executor> Grader<C, E> {
 
         grade_result.verdict = Verdict::Accepted;
         grade_result
+    }
+    pub fn grade_stream(self, problem: Problem) -> mpsc::Receiver<GradeStreamData> {
+        let checker = self.checker;
+        let executor = self.executor;
+        let (tx, rx) = mpsc::channel(8);
+
+        tokio::spawn(async move {
+            for (idx, test) in problem.tests.iter().enumerate() {
+                let res = executor
+                    .execute(&test.input, problem.memory_limit, problem.instruction_limit)
+                    .await;
+                match res {
+                    Ok(ExecuteResult {
+                        output,
+                        memory_used,
+                        instruction_count,
+                    }) => {
+                        if !checker.check(&output, &test.answer).await.unwrap_or(false) {
+                            let _ = tx
+                                .send(GradeStreamData::Result(GradeResult {
+                                    verdict: Verdict::WrongAnswer,
+                                    memory_used,
+                                    instruction_count,
+                                }))
+                                .await;
+                            return;
+                        }
+                        let _ = tx
+                            .send(GradeStreamData::Progress {
+                                completed_cases: (idx + 1) as i32,
+                                total_cases: problem.tests.len() as i32,
+                            })
+                            .await;
+                    }
+                    Err(ExecuteError::TimeLimitExceeded(time)) => {
+                        let _ = tx
+                            .send(GradeStreamData::Result(GradeResult {
+                                verdict: Verdict::TimeLimitExceeded(time),
+                                memory_used: 0,
+                                instruction_count: 0,
+                            }))
+                            .await;
+                        return;
+                    }
+                    Err(ExecuteError::MemoryLimitExceeded(memory)) => {
+                        let _ = tx
+                            .send(GradeStreamData::Result(GradeResult {
+                                verdict: Verdict::MemoryLimitExceeded(memory),
+                                memory_used: 0,
+                                instruction_count: 0,
+                            }))
+                            .await;
+                        return;
+                    }
+                    Err(ExecuteError::RuntimeError { reason }) => {
+                        let _ = tx
+                            .send(GradeStreamData::Result(GradeResult {
+                                verdict: Verdict::RuntimeError(reason),
+                                memory_used: 0,
+                                instruction_count: 0,
+                            }))
+                            .await;
+                        return;
+                    }
+                    Err(ExecuteError::CompilationError { message }) => {
+                        let _ = tx
+                            .send(GradeStreamData::Result(GradeResult {
+                                verdict: Verdict::CompilationError(message),
+                                memory_used: 0,
+                                instruction_count: 0,
+                            }))
+                            .await;
+                        return;
+                    }
+                }
+            }
+
+            tx.send(GradeStreamData::Result(GradeResult {
+                verdict: Verdict::Accepted,
+                memory_used: 0,
+                instruction_count: 0,
+            }))
+            .await
+            .unwrap();
+        });
+
+        rx
     }
 }
 
