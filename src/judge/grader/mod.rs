@@ -33,8 +33,8 @@ pub struct GradeResult {
 pub enum GradeStreamData {
     Result(GradeResult),
     Progress {
-        completed_cases: i32,
-        total_cases: i32,
+        completed_cases: u32,
+        total_cases: u32,
     },
 }
 
@@ -121,8 +121,8 @@ impl<C: Checker + 'static, E: Executor + 'static> Grader<C, E> {
                         }
                         let _ = tx
                             .send(GradeStreamData::Progress {
-                                completed_cases: (idx + 1) as i32,
-                                total_cases: problem.tests.len() as i32,
+                                completed_cases: (idx + 1) as u32,
+                                total_cases: problem.tests.len() as u32,
                             })
                             .await;
                     }
