@@ -42,56 +42,25 @@ impl<C: Checker + 'static, E: Executor + 'static> Grader<C, E> {
     pub fn new(checker: C, executor: E) -> Self {
         Self { checker, executor }
     }
-    pub async fn grade(&self, problem: Problem) -> GradeResult {
-        let checker = &self.checker;
-        let executor = &self.executor;
-
-        let mut grade_result = GradeResult {
+    // Grader::grade() is now useless and it is only used for testing
+    // Now it is implemented to call Grader::grade_stream() and collect the result from the stream
+    // to test the Grader::grade_stream() function
+    pub async fn grade(self, problem: Problem) -> GradeResult {
+        let mut stream = self.grade_stream(problem);
+        let mut result = None;
+        while let Some(data) = stream.recv().await {
+            match data {
+                GradeStreamData::Result(r) => {
+                    result = Some(r);
+                }
+                GradeStreamData::Progress { .. } => {}
+            }
+        }
+        result.unwrap_or(GradeResult {
             verdict: Verdict::SystemError(Some("Unknown error".to_string())),
             memory_used: 0,
             instruction_count: 0,
-        };
-
-        for (idx, test) in problem.tests.iter().enumerate() {
-            let res = executor
-                .execute(&test.input, problem.memory_limit, problem.instruction_limit)
-                .await;
-            match res {
-                Ok(ExecuteResult {
-                    output,
-                    memory_used,
-                    instruction_count,
-                }) => {
-                    grade_result.memory_used = grade_result.memory_used.max(memory_used);
-                    grade_result.instruction_count =
-                        grade_result.instruction_count.max(instruction_count);
-
-                    if !checker.check(&output, &test.answer).await.unwrap_or(false) {
-                        grade_result.verdict = Verdict::WrongAnswer;
-                        return grade_result;
-                    }
-                }
-                Err(ExecuteError::TimeLimitExceeded(time)) => {
-                    grade_result.verdict = Verdict::TimeLimitExceeded(time);
-                    return grade_result;
-                }
-                Err(ExecuteError::MemoryLimitExceeded(memory)) => {
-                    grade_result.verdict = Verdict::MemoryLimitExceeded(memory);
-                    return grade_result;
-                }
-                Err(ExecuteError::RuntimeError { reason }) => {
-                    grade_result.verdict = Verdict::RuntimeError(reason);
-                    return grade_result;
-                }
-                Err(ExecuteError::CompilationError { message }) => {
-                    grade_result.verdict = Verdict::CompilationError(message);
-                    return grade_result;
-                }
-            }
-        }
-
-        grade_result.verdict = Verdict::Accepted;
-        grade_result
+        })
     }
     pub fn grade_stream(self, problem: Problem) -> mpsc::Receiver<GradeStreamData> {
         let checker = self.checker;
