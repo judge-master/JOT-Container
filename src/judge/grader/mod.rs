@@ -4,7 +4,6 @@ use crate::judge::{Problem, testcase::Testcase};
 
 use super::checker::Checker;
 use super::executor::{ExecuteError, ExecuteResult, Executor};
-use std::sync::Arc;
 
 pub struct Grader<C: Checker, E: Executor> {
     pub checker: C,
@@ -158,7 +157,7 @@ async fn test_grader() {
         instruction_limit: 100000000,
     };
 
-    let mut grader = Grader::new(LcmpChecker, APlusBExecutor);
+    let grader = Grader::new(LcmpChecker, APlusBExecutor);
     let result = grader.grade(problem).await;
 
     assert_eq!(matches!(result.verdict, Verdict::Accepted), true);
@@ -185,7 +184,7 @@ async fn test_grader_instruction_limit() {
         instruction_limit: 1,
     };
 
-    let mut grader = Grader::new(LcmpChecker, APlusBExecutor);
+    let grader = Grader::new(LcmpChecker, APlusBExecutor);
     let result = grader.grade(problem).await;
 
     if let Verdict::TimeLimitExceeded(_) = result.verdict {

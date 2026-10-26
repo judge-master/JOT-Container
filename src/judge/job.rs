@@ -3,7 +3,7 @@ use crate::judge::{
     checker::lcmp_checker::LcmpChecker,
     compiler,
     grader::{self, Grader},
-    testcase::{self, TestcaseFetcher, lru_fetcher::LruTestcaseFetcher},
+    testcase::{TestcaseFetcher, lru_fetcher::LruTestcaseFetcher},
 };
 use jot_proto::judge::v1::JudgeEvent;
 use lazy_static::lazy_static;
