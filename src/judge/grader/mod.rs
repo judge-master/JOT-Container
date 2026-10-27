@@ -44,6 +44,7 @@ impl<C: Checker + 'static, E: Executor + 'static> Grader<C, E> {
     // Grader::grade() is now useless and it is only used for testing
     // Now it is implemented to call Grader::grade_stream() and collect the result from the stream
     // to test the Grader::grade_stream() function
+    #[cfg(test)]
     pub async fn grade(self, problem: Problem) -> GradeResult {
         let mut stream = self.grade_stream(problem);
         let mut result = None;
