@@ -235,36 +235,13 @@ async fn test_wasm_mle() {
     assert_eq!(res.output.trim(), "3");
 }
 
+// poll_oneoff 를 disable 했기 때문에 이 fixture는 런타임 에러가 나야 함
 #[tokio::test]
 #[should_panic = "Runtime error"]
 async fn test_wasm_sleep() {
-    // CCompiler를 사용하지만 WasmExecutor의 테스트를 위한 코드이기 때문에 여기다가 작성함
-
-    use crate::judge::compiler::CompilerResourceLimits;
-    use crate::judge::compiler::{Compiler, c::CCompiler};
-
-    let compiler = CCompiler;
-    let res = compiler
-        .compile(
-            r#"
-        #include <stdio.h>
-        #include <unistd.h>
-        int main() {
-            sleep(10);
-            printf("Hello, World!\n");
-            return 0;
-        }
-        "#,
-            CompilerResourceLimits {
-                time_limit_ms: 10_000,
-                memory_limit_byte: 1024 * 1024 * 128,
-                build_artifact_size_limit_byte: 1024 * 1024 * 128,
-            },
-        )
-        .await
-        .expect("Compilation failed");
-
-    let mut executor = res.executor;
+    let mut executor = WasmExecutor::new(
+        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/sleep.wasm")).to_vec(),
+    );
     executor
         .execute("", 100000000, 100000000)
         .await
@@ -274,38 +251,18 @@ async fn test_wasm_sleep() {
 // WASI의 wall clock과 monotonic clock이 항상 0을 반환하도록 구현했기 때문에, time() 함수는 항상 0을 반환해야 함
 #[tokio::test]
 async fn test_wasm_time() {
-    use crate::judge::compiler::CompilerResourceLimits;
-    use crate::judge::compiler::{Compiler, c::CCompiler};
-
-    let compiler = CCompiler;
-    let res = compiler
-        .compile(
-            r#"
-        #include <stdio.h>
-        #include <time.h>
-        int main() {
-            printf("current time : %ld\n", time(NULL));
-            return 0;
-        }
-        "#,
-            CompilerResourceLimits {
-                time_limit_ms: 10_000,
-                memory_limit_byte: 1024 * 1024 * 128,
-                build_artifact_size_limit_byte: 1024 * 1024 * 128,
-            },
-        )
-        .await
-        .expect("Compilation failed");
-
-    let mut executor = res.executor;
+    let mut executor = WasmExecutor::new(
+        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/time.wasm")).to_vec(),
+    );
     let result = executor
         .execute("", 100000000, 100000000)
         .await
         .expect("Runtime error");
 
-    assert_eq!(result.output.trim(), "current time : 0");
+    assert_eq!(result.output.trim(), "0");
 }
 
+#[cfg(test)]
 fn generate_long_input() -> String {
     let n = 100_000;
     let mut input = format!("{}\n", n);
@@ -317,36 +274,13 @@ fn generate_long_input() -> String {
 
 #[tokio::test]
 async fn test_long_input_scanf() {
-    use crate::judge::compiler::CompilerResourceLimits;
-    use crate::judge::compiler::{Compiler, c::CCompiler};
-
-    let compiler = CCompiler;
-    let res = compiler
-        .compile(
-            r#"
-        #include <stdio.h>
-        int main() {
-            int N;
-            scanf("%d", &N);
-            printf("%d\n", N);
-            for (int i = 0; i < N; i++) {
-                int x;
-                scanf("%d", &x);
-                printf("%d ", x);
-            }
-            return 0;
-        }
-        "#,
-            CompilerResourceLimits {
-                time_limit_ms: 10_000,
-                memory_limit_byte: 1024 * 1024 * 128,
-                build_artifact_size_limit_byte: 1024 * 1024 * 128,
-            },
-        )
-        .await
-        .expect("Compilation failed");
-
-    let mut executor = res.executor;
+    let mut executor = WasmExecutor::new(
+        include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/fixtures/long_input_scanf_strip.wasm"
+        ))
+        .to_vec(),
+    );
     let input = generate_long_input();
     let result = executor
         .execute(&input, 100000000, 1000000000)
@@ -358,38 +292,13 @@ async fn test_long_input_scanf() {
 
 #[tokio::test]
 async fn test_long_input_cin() {
-    use crate::judge::compiler::CompilerResourceLimits;
-    use crate::judge::compiler::{Compiler, cpp::CppCompiler};
-
-    let compiler = CppCompiler;
-    let res = compiler
-        .compile(
-            r#"
-        #include <iostream>
-        using namespace std;
-
-        int main() {
-            int N;
-            cin >> N;
-            cout << N << endl;
-            for (int i = 0; i < N; i++) {
-                int x;
-                cin >> x;
-                cout << x << " ";
-            }
-            return 0;
-        }
-        "#,
-            CompilerResourceLimits {
-                time_limit_ms: 10_000,
-                memory_limit_byte: 1024 * 1024 * 128,
-                build_artifact_size_limit_byte: 1024 * 1024 * 128,
-            },
-        )
-        .await
-        .expect("Compilation failed");
-
-    let mut executor = res.executor;
+    let mut executor = WasmExecutor::new(
+        include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/fixtures/long_input_cin_strip.wasm"
+        ))
+        .to_vec(),
+    );
     let input = generate_long_input();
     let result = executor
         .execute(&input, 100000000, 1000000000)
