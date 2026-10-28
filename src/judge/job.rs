@@ -3,7 +3,7 @@ use crate::judge::{
     checker::lcmp_checker::LcmpChecker,
     compiler,
     grader::{self, Grader},
-    testcase::{self, TestcaseFetcher, lru_fetcher::LruTestcaseFetcher},
+    testcase::{TestcaseFetcher, lru_fetcher::LruTestcaseFetcher},
 };
 use jot_proto::judge::v1::JudgeEvent;
 use lazy_static::lazy_static;
@@ -163,22 +163,51 @@ impl JudgeJob {
             })
             .await?;
 
-        // TODO: 테스트 케이스 적용 구현
-        // let _ = compiler_result
-        //     .executor
-        //     .execute("1 2", limits.memory_bytes, limits.instruction_count)
-        //     .await;
-
-        // todo: grader에 stream 기능 만들어야 함
         let grader = Grader::new(LcmpChecker::new(), compiler_result.executor);
 
-        let grade_result = grader
-            .grade(Problem {
-                memory_limit: limits.memory_bytes,
-                instruction_limit: limits.instruction_count,
-                tests: testcases,
-            })
-            .await;
+        let mut stream = grader.grade_stream(Problem {
+            memory_limit: limits.memory_bytes,
+            instruction_limit: limits.instruction_count,
+            tests: testcases,
+        });
+        let grade_result = loop {
+            let Some(data) = stream.recv().await else {
+                self.response_channel
+                    .send(JudgeEvent {
+                        request_id: self.request.request_id,
+                        payload: Some(jot_proto::judge::v1::judge_event::Payload::Result(
+                            jot_proto::judge::v1::JudgeResult {
+                                verdict: jot_proto::judge::v1::Verdict::SystemError as i32,
+                                error_message: Some("Grader stream closed unexpectedly".into()),
+                                ..Default::default()
+                            },
+                        )),
+                    })
+                    .await?;
+                return Ok(());
+            };
+            match data {
+                grader::GradeStreamData::Progress {
+                    completed_cases,
+                    total_cases,
+                } => {
+                    let event = JudgeEvent {
+                        request_id: self.request.request_id,
+                        payload: Some(jot_proto::judge::v1::judge_event::Payload::Progress(
+                            jot_proto::judge::v1::JudgeProgress {
+                                phase: jot_proto::judge::v1::JudgePhase::Running as i32,
+                                completed_cases,
+                                total_cases,
+                            },
+                        )),
+                    };
+                    self.response_channel.send(event).await?;
+                }
+                grader::GradeStreamData::Result(grade_result) => {
+                    break grade_result;
+                }
+            }
+        };
 
         let (verdict, error) = match grade_result.verdict {
             grader::Verdict::Accepted => (jot_proto::judge::v1::Verdict::Accepted, None),
