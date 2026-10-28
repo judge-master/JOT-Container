@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use lazy_static::lazy_static;
 use std::sync::Arc;
 use wasmtime::{Config, Engine, Linker, Module, Store, StoreLimits, StoreLimitsBuilder, Trap};
+use wasmtime_wasi::{HostMonotonicClock, HostWallClock, WasiCtxBuilder};
 use wasmtime_wasi::{
     WasiCtx, WasiCtxView, WasiView,
     p1::WasiP1Ctx,
@@ -18,6 +19,28 @@ lazy_static! {
             .wasm_exceptions(true)
     )
     .expect("Failed to initialize Wasmtime engine");
+}
+
+// this clock always returns same value to prevent non-deterministic codes depends on system clock
+// unfortunately this custom clock doesn't prevent sleep()
+// but it can prevent something like non-deterministic hashing based on clock
+struct DeniedClock;
+impl HostWallClock for DeniedClock {
+    fn now(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(0)
+    }
+    fn resolution(&self) -> std::time::Duration {
+        std::time::Duration::from_nanos(1)
+    }
+}
+struct DeniedMonotonicClock;
+impl HostMonotonicClock for DeniedMonotonicClock {
+    fn now(&self) -> u64 {
+        0
+    }
+    fn resolution(&self) -> u64 {
+        1
+    }
 }
 
 pub struct WasmExecutor {
@@ -67,6 +90,29 @@ impl Executor for WasmExecutor {
             });
         }
 
+        // shadow implementation of `poll_oneoff` to preventing sleeping
+        // it immediately traps the instance if it tries to call poll_oneoff
+        // it can prevent something like sleep() on <unistd.h>
+        // but it may have side effects about input/output
+        // currently our input stream immediately returns some value or EOF, so this works fine
+        linker.allow_shadowing(true);
+
+        linker
+            .func_wrap(
+                "wasi_snapshot_preview1",
+                "poll_oneoff",
+                |_in_ptr: i32,
+                 _out_ptr: i32,
+                 _nsubscriptions: i32,
+                 _nevents_ptr: i32|
+                 -> wasmtime::Result<i32> {
+                    Err(wasmtime::Error::msg("poll_oneoff is disabled"))
+                },
+            )
+            .map_err(|_| ExecuteError::RuntimeError {
+                reason: Some("linker.func_wrap() failed".into()),
+            })?;
+
         let input = String::from(input);
 
         let memory_input = MemoryInputPipe::new(input);
@@ -78,6 +124,8 @@ impl Executor for WasmExecutor {
             .stdout(memory_output.clone())
             .stderr(memory_error_output.clone())
             .stdin(memory_input)
+            .wall_clock(DeniedClock)
+            .monotonic_clock(DeniedMonotonicClock)
             .arg("StringExecutor")
             .build_p1();
 
@@ -190,4 +238,77 @@ async fn test_wasm_mle() {
         .await
         .expect("Runtime error");
     assert_eq!(res.output.trim(), "3");
+}
+
+// poll_oneoff 를 disable 했기 때문에 이 fixture는 런타임 에러가 나야 함
+#[tokio::test]
+#[should_panic = "Runtime error"]
+async fn test_wasm_sleep() {
+    let mut executor = WasmExecutor::new(
+        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/sleep.wasm")).to_vec(),
+    );
+    executor
+        .execute("", 100000000, 100000000)
+        .await
+        .expect("Runtime error");
+}
+
+// WASI의 wall clock과 monotonic clock이 항상 0을 반환하도록 구현했기 때문에, time() 함수는 항상 0을 반환해야 함
+#[tokio::test]
+async fn test_wasm_time() {
+    let mut executor = WasmExecutor::new(
+        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/time.wasm")).to_vec(),
+    );
+    let result = executor
+        .execute("", 100000000, 100000000)
+        .await
+        .expect("Runtime error");
+
+    assert_eq!(result.output.trim(), "0");
+}
+
+#[cfg(test)]
+fn generate_long_input() -> String {
+    let n = 100_000;
+    let mut input = format!("{}\n", n);
+    for i in 0..n {
+        input.push_str(&format!("{} ", i));
+    }
+    input
+}
+
+#[tokio::test]
+async fn test_long_input_scanf() {
+    let mut executor = WasmExecutor::new(
+        include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/fixtures/long_input_scanf_strip.wasm"
+        ))
+        .to_vec(),
+    );
+    let input = generate_long_input();
+    let result = executor
+        .execute(&input, 100000000, 1000000000)
+        .await
+        .expect("Runtime error");
+
+    assert_eq!(result.output.trim(), input.trim());
+}
+
+#[tokio::test]
+async fn test_long_input_cin() {
+    let mut executor = WasmExecutor::new(
+        include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/fixtures/long_input_cin_strip.wasm"
+        ))
+        .to_vec(),
+    );
+    let input = generate_long_input();
+    let result = executor
+        .execute(&input, 100000000, 1000000000)
+        .await
+        .expect("Runtime error");
+
+    assert_eq!(result.output.trim(), input.trim());
 }
