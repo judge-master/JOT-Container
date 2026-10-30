@@ -16,3 +16,4 @@ pub trait TestcaseFetcher {
 }
 
 pub mod lru_fetcher;
+pub mod parser;
