@@ -5,8 +5,10 @@ edition = "2024"
 
 [dependencies]
 async-trait = "0.1.92"
+bytes = "1.12.1"
 jot-proto = "1.0.2"
 lazy_static = "1.5.0"
+parquet = { version = "60.1.0", default-features = false, features = ["snap", "brotli", "flate2-zlib-rs", "lz4", "zstd"] }
 prost = "0.14.4"
 scc = "3.8.8"
 tokio = { version = "1", features = ["macros", "process", "rt-multi-thread", "signal", "time"] }

@@ -30,6 +30,21 @@ JOT은 컨테이너에서 동작하는 Rust 기반 채점 서버입니다. 상�
 
 Rust 프로세스는 자주 사용되는 테스트 케이스를 메모리에 캐시해 반복 다운로드를 줄입니다. 프로세스 종료에 대비해 캐시를 비동기적으로 디스크에 백업합니다.
 
+## 테스트 케이스 파일 형식
+
+`Parser::parse`는 Parquet 파일의 바이트를 받아 각 행을 `Testcase`로 변환합니다. 스키마는 아래 순서의 필수 `BYTE_ARRAY` 컬럼 두 개로 구성되어야 하며, 중첩 컬럼, 추가 컬럼, nullable·repeated 컬럼은 허용하지 않습니다.
+
+```text
+message test_cases {
+  required binary input;
+  required binary output;
+}
+```
+
+`input`은 `Testcase.input`, `output`은 `Testcase.answer`에 저장합니다. 기존 `String` 자료형을 유지하므로 두 값 모두 유효한 UTF-8이어야 합니다. 공백, 개행, NUL 및 빈 문자열은 변경 없이 보존하며, UTF-8이 아닌 값이나 잘못된 파일·스키마·누락된 값은 오류로 반환합니다. 여러 row group은 파일 순서대로 처리하고, 행이 없는 유효한 파일은 빈 목록으로 반환합니다.
+
+파서 단위 테스트는 외부 서버나 환경변수 설정 없이 `cargo test judge::testcase::parser::tests`로 실행할 수 있습니다.
+
 ## 로컬 테스트
 
 로컬에서 `cargo test`를 실행하려면 먼저 필수 환경변수를 export해야 합니다. 설정값은 테스트에서도 자동으로 제공되지 않습니다. 필요한 변수와 실행 예시는 [테스트 안내](tests/README.md)를 참고하세요.
