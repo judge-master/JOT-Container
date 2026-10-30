@@ -1,4 +1,4 @@
-use crate::judge::testcase::{FetchResult, Testcase, TestcaseFetcher};
+use crate::judge::testcase::{self, FetchResult, Testcase, TestcaseFetcher};
 use async_trait::async_trait;
 use std::{sync::Arc, time::Duration};
 use tokio::{sync::OnceCell, time::sleep};
@@ -23,17 +23,15 @@ impl LruTestcaseFetcher {
         // Simulate a network delay
         sleep(Duration::from_millis(50)).await;
 
-        // For now, we just return a dummy testcases
-        Ok(Some(Arc::new(vec![
-            Testcase {
-                input: "1 2".into(),
-                answer: "3".into(),
-            },
-            Testcase {
-                input: "4 5".into(),
-                answer: "9".into(),
-            },
-        ])))
+        let bytes = include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/fixtures/test_cases.parquet"
+        ));
+        let parser = testcase::parser::Parser;
+        let testcases = parser
+            .parse(bytes.to_vec())
+            .map_err(|e| format!("Failed to parse testcases: {}", e))?;
+        Ok(Some(Arc::new(testcases)))
     }
 }
 #[async_trait]

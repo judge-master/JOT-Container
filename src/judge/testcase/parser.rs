@@ -10,7 +10,11 @@ use super::{Testcase, Testcases};
 pub struct Parser;
 
 impl Parser {
-    pub fn parse(input: Vec<u8>) -> Result<Testcases, String> {
+    pub fn new() -> Self {
+        Self
+    }
+
+    pub fn parse(&self, input: Vec<u8>) -> Result<Testcases, String> {
         let reader = SerializedFileReader::new(Bytes::from(input))
             .map_err(|e| format!("Failed to open Parquet test cases: {e}"))?;
         let fields = reader.metadata().file_metadata().schema().get_fields();
@@ -146,7 +150,8 @@ mod tests {
     #[test]
     fn parses_testcases() {
         let bytes = parquet_file(SCHEMA, &[vec![(b"1 2", b"3"), (b"100 200", b"300")]]);
-        let cases = Parser::parse(bytes).unwrap();
+        let parser = Parser;
+        let cases = parser.parse(bytes).unwrap();
         let actual: Vec<_> = cases
             .iter()
             .map(|case| (case.input.as_str(), case.answer.as_str()))
@@ -158,6 +163,7 @@ mod tests {
     #[should_panic(expected = "Expected input and output columns")]
     fn rejects_missing_output_field() {
         let schema = "message test_cases { required binary input; }";
-        Parser::parse(parquet_file(schema, &[])).unwrap();
+        let parser = Parser;
+        parser.parse(parquet_file(schema, &[])).unwrap();
     }
 }
