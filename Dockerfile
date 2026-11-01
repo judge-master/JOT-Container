@@ -161,7 +161,7 @@ ENV WASI_SDK_PATH=/opt/wasi-sdk
 ENV CLANG_PATH=/opt/wasi-sdk/bin/clang
 ENV CLANGPP_PATH=/opt/wasi-sdk/bin/clang++
 ENV CLANG_ADDITIONAL_FLAGS="--target=wasm32-wasip1 --sysroot=/opt/wasi-sdk/share/wasi-sysroot"
-ENV CLANGPP_ADDITIONAL_FLAGS="--target=wasm32-wasip1 --sysroot=/opt/wasi-sdk/share/wasi-sysroot -fwasm-exceptions -mllvm -wasm-use-legacy-eh=false -lunwind"
+ENV CLANGPP_ADDITIONAL_FLAGS="--target=wasm32-wasip1 --sysroot=/opt/wasi-sdk/share/wasi-sysroot"
 ENV RUSTC_PATH=/opt/rust/bin/rustc
 ENV GOROOT=/opt/go
 ENV GO_PATH=/opt/go/bin/go
