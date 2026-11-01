@@ -27,7 +27,7 @@ lazy_static! {
 struct DeniedClock;
 impl HostWallClock for DeniedClock {
     fn now(&self) -> std::time::Duration {
-        std::time::Duration::from_secs(0)
+        std::time::Duration::from_secs(1)
     }
     fn resolution(&self) -> std::time::Duration {
         std::time::Duration::from_nanos(1)
@@ -36,7 +36,7 @@ impl HostWallClock for DeniedClock {
 struct DeniedMonotonicClock;
 impl HostMonotonicClock for DeniedMonotonicClock {
     fn now(&self) -> u64 {
-        0
+        1
     }
     fn resolution(&self) -> u64 {
         1
