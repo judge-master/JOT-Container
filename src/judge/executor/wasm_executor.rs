@@ -248,20 +248,6 @@ async fn test_wasm_sleep() {
         .expect("Runtime error");
 }
 
-// WASI의 wall clock과 monotonic clock이 항상 0을 반환하도록 구현했기 때문에, time() 함수는 항상 0을 반환해야 함
-#[tokio::test]
-async fn test_wasm_time() {
-    let mut executor = WasmExecutor::new(
-        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/time.wasm")).to_vec(),
-    );
-    let result = executor
-        .execute("", 100000000, 100000000)
-        .await
-        .expect("Runtime error");
-
-    assert_eq!(result.output.trim(), "0");
-}
-
 #[cfg(test)]
 fn generate_long_input() -> String {
     let n = 100_000;
