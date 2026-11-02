@@ -184,10 +184,10 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS build
 ENV CARGO_PROFILE_RELEASE_STRIP=symbols
-ENV GRPC_ADDR=0.0.0.0:50051
 COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --locked --recipe-path recipe.json
-COPY . .
+COPY Cargo.toml Cargo.lock ./
+COPY src/ ./src/
 RUN cargo build --release --locked --bin JOT-Container
 
 # ---------------------------
