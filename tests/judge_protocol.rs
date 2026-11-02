@@ -1,8 +1,8 @@
 use std::{net::TcpListener, time::Duration};
 
 use jot_proto::judge::v1::{
-    JudgeEvent, JudgePhase, JudgeRequest, JudgeResult, Language, ResourceLimits, Verdict,
-    judge_event::Payload, judge_service_client::JudgeServiceClient,
+    JudgeEvent, JudgeRequest, JudgeResult, Language, judge_event::Payload, judge_result::Verdict,
+    judge_service_client::JudgeServiceClient,
 };
 use tokio::process::{Child, Command};
 use tonic::transport::{Channel, Endpoint};
@@ -20,12 +20,10 @@ int main() {
 }
 "#
         .into(),
-        limits: Some(ResourceLimits {
-            compile_time_ms: 10_000,
-            instruction_count: 100_000_000,
-            memory_bytes: 64 * 1024 * 1024,
-            build_artifact_bytes: 16 * 1024 * 1024,
-        }),
+        compile_time_ms_limit: 10_000,
+        instruction_count_limit: 100_000_000,
+        memory_bytes_limit: 64 * 1024 * 1024,
+        build_artifact_bytes_limit: 16 * 1024 * 1024,
     }
 }
 
@@ -83,7 +81,16 @@ fn terminal_result(events: &[JudgeEvent]) -> &JudgeResult {
     let (last, progress) = events.split_last().expect("Judge stream was empty");
     for event in progress {
         assert!(
-            matches!(&event.payload, Some(Payload::Progress(_))),
+            matches!(
+                &event.payload,
+                Some(
+                    Payload::Recieved(_)
+                        | Payload::Compiling(_)
+                        | Payload::FetchingTestCasesMetadata(_)
+                        | Payload::Running(_)
+                        | Payload::Finishing(_)
+                )
+            ),
             "only progress events may precede the terminal result: {event:?}"
         );
     }
@@ -93,18 +100,40 @@ fn terminal_result(events: &[JudgeEvent]) -> &JudgeResult {
     }
 }
 
-fn assert_progress_phases(events: &[JudgeEvent], expected: &[JudgePhase]) {
-    let phases = events
-        .iter()
-        .filter_map(|event| match &event.payload {
-            Some(Payload::Progress(progress)) => {
-                Some(JudgePhase::try_from(progress.phase).unwrap())
-            }
-            Some(Payload::Result(_)) => None,
-            None => panic!("event had no payload: {event:?}"),
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(phases, expected);
+fn assert_compile_progress(events: &[JudgeEvent]) {
+    assert_eq!(
+        events.len(),
+        3,
+        "expected received, compiling, result: {events:?}"
+    );
+    assert!(matches!(events[0].payload, Some(Payload::Recieved(_))));
+    assert!(matches!(events[1].payload, Some(Payload::Compiling(_))));
+}
+
+fn assert_complete(events: &[JudgeEvent]) {
+    assert_eq!(events.len(), 5, "unexpected event sequence: {events:?}");
+    assert!(matches!(events[0].payload, Some(Payload::Recieved(_))));
+    assert!(matches!(events[1].payload, Some(Payload::Compiling(_))));
+    assert!(matches!(
+        events[2].payload,
+        Some(Payload::FetchingTestCasesMetadata(_))
+    ));
+    match &events[3].payload {
+        Some(Payload::Running(running)) => {
+            assert_eq!(running.completed_cases, 0);
+            assert_eq!(running.total_cases, 2);
+        }
+        payload => panic!("expected running event, got {payload:?}"),
+    }
+    match &terminal_result(events).verdict {
+        Some(Verdict::Complete(complete)) => {
+            assert_eq!(complete.correct_subproblems, 2);
+            assert_eq!(complete.total_subproblems, 2);
+            assert!(complete.instruction_count > 0);
+            assert!(complete.memory_bytes > 0);
+        }
+        verdict => panic!("expected complete verdict, got {verdict:?}"),
+    }
 }
 
 #[tokio::test]
@@ -112,23 +141,7 @@ async fn judge_rpc_stream_ends_with_a_terminal_result() {
     let (mut server, mut client) = start_server().await;
     let events = judge_events(&mut client, request(1)).await;
     assert!(events.iter().all(|event| event.request_id == 1));
-    let result = terminal_result(&events);
-    match result.verdict() {
-        Verdict::Accepted => assert_progress_phases(
-            &events,
-            &[
-                JudgePhase::Received,
-                JudgePhase::Compiling,
-                JudgePhase::FetchingCases,
-                JudgePhase::Running,
-            ],
-        ),
-        Verdict::CompilationError => {
-            assert_progress_phases(&events, &[JudgePhase::Received, JudgePhase::Compiling]);
-            assert!(!result.compiler_diagnostics.is_empty());
-        }
-        verdict => panic!("unexpected verdict: {verdict:?}"),
-    }
+    assert_complete(&events);
     server.kill().await.unwrap();
 }
 
@@ -140,10 +153,11 @@ async fn judge_rpc_stream_returns_compilation_error_as_terminal_result() {
 
     let events = judge_events(&mut client, invalid_request).await;
     assert!(events.iter().all(|event| event.request_id == 2));
-    assert_progress_phases(&events, &[JudgePhase::Received, JudgePhase::Compiling]);
-    let result = terminal_result(&events);
-    assert_eq!(result.verdict(), Verdict::CompilationError);
-    assert!(!result.compiler_diagnostics.is_empty());
+    assert_compile_progress(&events);
+    match &terminal_result(&events).verdict {
+        Some(Verdict::CompileError(error)) => assert!(!error.compiler_diagnostics.is_empty()),
+        verdict => panic!("expected compile error, got {verdict:?}"),
+    }
     server.kill().await.unwrap();
 }
 
@@ -165,11 +179,37 @@ async fn judge_queue_streams_concurrent_requests_with_independent_terminal_resul
     while let Some(task) = tasks.join_next().await {
         let (request_id, events) = task.expect("judge request task failed");
         assert!(events.iter().all(|event| event.request_id == request_id));
-        let result = terminal_result(&events);
-        assert!(matches!(
-            result.verdict(),
-            Verdict::Accepted | Verdict::CompilationError
-        ));
+        assert_complete(&events);
+    }
+    server.kill().await.unwrap();
+}
+
+#[tokio::test]
+async fn judge_rpc_returns_compile_time_limit_with_requested_limit() {
+    let (mut server, mut client) = start_server().await;
+    let mut request = request(3);
+    request.compile_time_ms_limit = 0;
+    let events = judge_events(&mut client, request).await;
+    assert!(events.iter().all(|event| event.request_id == 3));
+    assert_compile_progress(&events);
+    match &terminal_result(&events).verdict {
+        Some(Verdict::CompileTle(error)) => assert_eq!(error.max_compile_time_ms, 0),
+        verdict => panic!("expected compile time limit, got {verdict:?}"),
+    }
+    server.kill().await.unwrap();
+}
+
+#[tokio::test]
+async fn judge_rpc_returns_compile_artifact_limit_with_requested_limit() {
+    let (mut server, mut client) = start_server().await;
+    let mut request = request(4);
+    request.build_artifact_bytes_limit = 1;
+    let events = judge_events(&mut client, request).await;
+    assert!(events.iter().all(|event| event.request_id == 4));
+    assert_compile_progress(&events);
+    match &terminal_result(&events).verdict {
+        Some(Verdict::CompileBle(error)) => assert_eq!(error.max_build_artifact_bytes, 1),
+        verdict => panic!("expected compile artifact limit, got {verdict:?}"),
     }
     server.kill().await.unwrap();
 }

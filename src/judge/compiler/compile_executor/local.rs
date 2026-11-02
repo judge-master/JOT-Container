@@ -169,7 +169,6 @@ impl CompileExecutor for LocalCompileExecutor {
 async fn captures_stdout_as_bytes_and_stderr_as_diagnostics() {
     use super::CompileExecutor;
     let limits = CompilerResourceLimits {
-        memory_limit_byte: 64 * 1024 * 1024,
         time_limit_ms: 5000,
         build_artifact_size_limit_byte: 10 * 1024 * 1024,
     };
@@ -187,7 +186,6 @@ async fn captures_stdout_as_bytes_and_stderr_as_diagnostics() {
 #[tokio::test]
 async fn empty_output_is_a_compilation_error() {
     let limits = || CompilerResourceLimits {
-        memory_limit_byte: 64 * 1024 * 1024,
         time_limit_ms: 5000,
         build_artifact_size_limit_byte: 1024,
     };
@@ -232,7 +230,6 @@ async fn time_limit_stops_compiler_with_blocked_input() {
     let script = format!("echo $$ > '{}'; exec sleep 5", pid_file.display());
     let mut executor = LocalCompileExecutor::new("sh", ["-c", &script]);
     let limits = CompilerResourceLimits {
-        memory_limit_byte: 64 * 1024 * 1024,
         time_limit_ms: 200,
         build_artifact_size_limit_byte: 1024,
     };
@@ -260,7 +257,6 @@ async fn artifact_limit_stops_compiler() {
     );
     let mut executor = LocalCompileExecutor::new("sh", ["-c", &script]);
     let limits = CompilerResourceLimits {
-        memory_limit_byte: 64 * 1024 * 1024,
         time_limit_ms: 2000,
         build_artifact_size_limit_byte: 4,
     };

@@ -22,7 +22,6 @@ pub struct CompilerResult {
 #[derive(Debug)]
 pub enum CompilerError {
     TimeLimitExceeded(u64),
-    MemoryLimitExceeded(u64),
     BuildArtifactSizeLimitExceeded(u64),
     CompilationError(String),
     RuntimeError(String),
@@ -32,9 +31,6 @@ impl CompilerError {
     pub fn to_string(&self) -> String {
         match self {
             CompilerError::TimeLimitExceeded(limit) => format!("Time limit exceeded: {} ms", limit),
-            CompilerError::MemoryLimitExceeded(limit) => {
-                format!("Memory limit exceeded: {} bytes", limit)
-            }
             CompilerError::BuildArtifactSizeLimitExceeded(limit) => {
                 format!("Build artifact size limit exceeded: {} bytes", limit)
             }
@@ -45,7 +41,6 @@ impl CompilerError {
 }
 
 pub struct CompilerResourceLimits {
-    pub memory_limit_byte: u64,
     pub time_limit_ms: u64,
     pub build_artifact_size_limit_byte: u64,
 }
@@ -66,7 +61,6 @@ pub(crate) mod test_support {
 
     pub fn default_limits() -> CompilerResourceLimits {
         CompilerResourceLimits {
-            memory_limit_byte: 64 * 1024 * 1024,
             time_limit_ms: 10_000,
             build_artifact_size_limit_byte: 10 * 1024 * 1024,
         }
