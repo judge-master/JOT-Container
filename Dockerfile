@@ -46,6 +46,28 @@ ENV CLANGPP_PATH=/opt/wasi-sdk/bin/clang++
 ENV CLANG_ADDITIONAL_FLAGS="--target=wasm32-wasip1 --sysroot=/opt/wasi-sdk/share/wasi-sysroot"
 ENV CLANGPP_ADDITIONAL_FLAGS="--target=wasm32-wasip1 --sysroot=/opt/wasi-sdk/share/wasi-sysroot -fwasm-exceptions -mllvm -wasm-use-legacy-eh=false -lunwind"
 
+# 배포용 SDK는 Python 빌드용 SDK와 분리한다.
+FROM wasi-sdk-stage AS runtime-wasi-sdk-stage
+RUN rm -rf /opt/wasi-sdk/include \
+        /opt/wasi-sdk/bin/clang-tidy /opt/wasi-sdk/bin/run-clang-tidy \
+        /opt/wasi-sdk/bin/clang-format /opt/wasi-sdk/bin/git-clang-format \
+        /opt/wasi-sdk/bin/clang-apply-replacements /opt/wasi-sdk/bin/clang-scan-deps \
+        /opt/wasi-sdk/bin/wasm-component-ld /opt/wasi-sdk/bin/lldb \
+        /opt/wasi-sdk/bin/llvm-config /opt/wasi-sdk/bin/xml2-config \
+        /opt/wasi-sdk/bin/llvm-ar /opt/wasi-sdk/bin/llvm-ranlib \
+        /opt/wasi-sdk/bin/ar /opt/wasi-sdk/bin/ranlib \
+        /opt/wasi-sdk/bin/llvm-objcopy /opt/wasi-sdk/bin/llvm-strip \
+        /opt/wasi-sdk/bin/objcopy /opt/wasi-sdk/bin/strip \
+        /opt/wasi-sdk/bin/llvm-objdump /opt/wasi-sdk/bin/objdump \
+        /opt/wasi-sdk/bin/llvm-dwarfdump /opt/wasi-sdk/bin/llvm-dwp \
+        /opt/wasi-sdk/bin/llvm-nm /opt/wasi-sdk/bin/nm \
+        /opt/wasi-sdk/bin/llvm-size /opt/wasi-sdk/bin/size \
+        /opt/wasi-sdk/bin/llvm-strings /opt/wasi-sdk/bin/strings \
+        /opt/wasi-sdk/bin/llvm-cxxfilt /opt/wasi-sdk/bin/c++filt /opt/wasi-sdk/bin/llvm-mc \
+        /opt/wasi-sdk/lib/liblldb.so* /opt/wasi-sdk/lib/libclang.so* \
+    && find /opt/wasi-sdk/share/wasi-sysroot/lib/wasm32-wasip1 \
+        -type d -name llvm-lto -prune -exec rm -rf {} +
+
 # ---------------------------
 # CPython의 WASI 타겟 빌드 
 # --------------------------- 
@@ -65,10 +87,16 @@ RUN CFLAGS=-O1 /src/cpython/configure --without-ensurepip --disable-test-modules
     && make -j "$(nproc)"
 
 WORKDIR /build/wasi
-RUN CC="/opt/wasi-sdk/bin/clang --target=wasm32-wasip1 --sysroot=/opt/wasi-sdk/share/wasi-sysroot" \
+RUN set -eu; \
+    config_site=/src/cpython/Tools/wasm/wasi/config.site-wasm32-wasi; \
+    if [ ! -f "$config_site" ]; then \
+        config_site=/src/cpython/Tools/wasm/config.site-wasm32-wasi; \
+    fi; \
+    test -f "$config_site"; \
+    CC="/opt/wasi-sdk/bin/clang --target=wasm32-wasip1 --sysroot=/opt/wasi-sdk/share/wasi-sysroot" \
     AR=/opt/wasi-sdk/bin/llvm-ar \
     RANLIB=/opt/wasi-sdk/bin/llvm-ranlib \
-    CONFIG_SITE=/src/cpython/Tools/wasm/wasi/config.site-wasm32-wasi \
+    CONFIG_SITE="$config_site" \
     PKG_CONFIG_PATH= \
     PKG_CONFIG_LIBDIR=/opt/wasi-sdk/share/wasi-sysroot/lib/pkgconfig \
     PKG_CONFIG_SYSROOT_DIR=/opt/wasi-sdk/share/wasi-sysroot \
@@ -77,11 +105,12 @@ RUN CC="/opt/wasi-sdk/bin/clang --target=wasm32-wasip1 --sysroot=/opt/wasi-sdk/s
         --build="$(/src/cpython/config.guess)" \
         --with-build-python=/build/native/python \
         --without-ensurepip --disable-test-modules --disable-shared \
-    && make -j "$(nproc)" libpython3.14.a python.wasm
+    && make -j "$(nproc)" python.wasm
 
-COPY scripts/build_python_template.py /build/build_python_template.py
-RUN /build/native/python /build/build_python_template.py \
-    --source-dir /src/cpython --build-dir /build/wasi \
+COPY scripts/build_python_template.pl /build/build_python_template.pl
+# 최종 링크에서 -Wl,--strip-all로 심볼을 제거한 후 제출 코드 메타데이터를 추가한다.
+RUN perl /build/build_python_template.pl \
+    --source-dir /src/cpython --build-dir /build/wasi --native-build-dir /build/native \
     --cc /opt/wasi-sdk/bin/clang --sysroot /opt/wasi-sdk/share/wasi-sysroot --output /out/python-template.wasm
 
 # ---------------------------
@@ -101,15 +130,35 @@ RUN rustup toolchain install "${RUST_VERSION}" --profile minimal --target wasm32
     && rm -rf "$(/opt/rust/bin/rustc --print target-libdir)" \
         /opt/rust/bin/cargo /opt/rust/bin/rustdoc \
         /opt/rust/bin/rust-gdb /opt/rust/bin/rust-gdbgui /opt/rust/bin/rust-lldb \
-        /opt/rust/etc /opt/rust/libexec /opt/rust/share/man /opt/rust/share/zsh
+        /opt/rust/etc /opt/rust/libexec /opt/rust/share/man /opt/rust/share/zsh \
+        /opt/rust/lib/rustlib/*/bin/wasm-component-ld \
+        /opt/rust/lib/rustlib/*/bin/gcc-ld \
+        /opt/rust/lib/rustlib/*/bin/rust-objcopy \
+        /opt/rust/lib/rustlib/etc \
+        /opt/rust/lib/rustlib/components \
+        /opt/rust/lib/rustlib/manifest-* \
+        /opt/rust/lib/rustlib/multirust-* \
+        /opt/rust/lib/rustlib/rust-installer-version \
+        /opt/rust/lib/rustlib/install.log /opt/rust/lib/rustlib/uninstall.sh
 
 RUN apt-get install -y --no-install-recommends wget
 ARG GO_VERSION
 ARG TARGETARCH
+# WASI 빌드에 필요한 표준 라이브러리 소스와 compile/link/asm, 라이선스 고지는 유지한다.
 RUN wget --tries=3 "https://go.dev/dl/go${GO_VERSION}.linux-${TARGETARCH}.tar.gz" -O /tmp/go.tar.gz \
     && tar -C /opt -xzf /tmp/go.tar.gz \
     && rm /tmp/go.tar.gz \
-    && rm -rf /opt/go/test
+    && rm -rf /opt/go/test /opt/go/api /opt/go/doc /opt/go/misc \
+        /opt/go/CONTRIBUTING.md /opt/go/README.md /opt/go/SECURITY.md \
+        /opt/go/codereview.cfg /opt/go/bin/gofmt \
+        /opt/go/pkg/tool/linux_${TARGETARCH}/vet \
+        /opt/go/pkg/tool/linux_${TARGETARCH}/cover \
+        /opt/go/pkg/tool/linux_${TARGETARCH}/cgo \
+        /opt/go/pkg/tool/linux_${TARGETARCH}/preprofile \
+        /opt/go/pkg/tool/linux_${TARGETARCH}/fix \
+        /opt/go/src/cmd \
+    && find /opt/go/src -type f -name '*_test.go' -delete \
+    && find /opt/go/src -type d -name testdata -prune -exec rm -rf {} +
 
 ENV PATH=/opt/rust/bin:/opt/go/bin:${PATH}
 ENV GOROOT=/opt/go
@@ -150,7 +199,7 @@ RUN apt-get update \
         libc6 libgcc-s1 libstdc++6 libtinfo6 zlib1g \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=wasi-sdk-stage /opt/wasi-sdk /opt/wasi-sdk
+COPY --from=runtime-wasi-sdk-stage /opt/wasi-sdk /opt/wasi-sdk
 COPY --from=wasi-language-stage /opt/rust /opt/rust
 COPY --from=wasi-language-stage /opt/go /opt/go
 COPY --from=build-wasi-python-template /out/python-template.wasm /opt/jot/python/python-template.wasm

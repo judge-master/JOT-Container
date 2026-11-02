@@ -79,6 +79,10 @@ docker build --target test -t jot-test .
 
 C++은 SDK 34의 예외 처리 라이브러리와 표준 Wasm 예외 처리를 사용합니다.
 SDK는 채점에 사용하는 WASI P1 sysroot만 보존합니다.
+`runtime-wasi-sdk-stage`는 `wasi-sdk-stage`를 상속해 분석·디버거·아카이브·바이너리 후처리 도구,
+libclang C API·LLDB 공유 라이브러리와 LTO 라이브러리를 제거합니다.
+최종 실행 환경은 이 SDK를 복사하며, Python 템플릿 빌드는 정리 전 `wasi-sdk-stage`를 사용합니다.
+Clang·LLD가 사용하는 LLVM·libclang-cpp·libedit와 진단용 llvm-symbolizer는 유지합니다.
 `wasi-language-stage`에서는 Rust 호스트 표준 라이브러리, Cargo, rustdoc, 디버거 보조 도구를 제거합니다.
 Rust 라이선스·저작권 고지, 컴파일러 공유 라이브러리, `rust-lld`, WASI 표준 라이브러리와
 Go 표준 라이브러리 소스는 유지합니다. 서버 빌드는 `project-rust-stage`의 도구 체인을 사용합니다.
@@ -99,10 +103,14 @@ CI/CD도 `test`·`release` 캐시를 서로 읽습니다.
 
 ## Python Wasm 템플릿 빌드
 
-`build-wasi-python-template`은 CPython 3.14.7 소스에서 빌드 보조용 네이티브 Python을 O1로 빌드한 후,
+`build-wasi-python-template`은 `PYTHON_VERSION`(기본 `3.14.7`) 소스에서 빌드 보조용 네이티브 Python을 O1로 빌드한 후,
 WASI SDK의 Clang과 sysroot로 WASI Preview 1용 Python을 교차 빌드합니다.
-`scripts/build_python_template.py`로 표준 라이브러리와 1MiB의 제출 코드 저장 공간을
+Debian 기본 `perl-base`의 Perl로 `scripts/build_python_template.pl`을 실행하여 표준 라이브러리와 1MiB의 제출 코드 저장 공간을
 포함하는 `/out/python-template.wasm`을 생성합니다.
+템플릿 생성은 Python 인터프리터 대신 같은 소스에서 빌드한 네이티브 `Programs/_freeze_module`로
+표준 라이브러리를 동결하고, Perl로 C 진입점과 Wasm 메타데이터를 생성합니다.
+버전과 ABI가 반영된 정적 라이브러리 이름은 CPython Makefile에서 자동으로 읽습니다.
+CPython 3.11 이상을 대상으로 하며, 네이티브·WASI 빌드는 지정한 동일 소스를 사용해야 합니다.
 
 ```sh
 docker build --target build-wasi-python-template -t jot-python-template .
