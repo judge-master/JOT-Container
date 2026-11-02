@@ -214,7 +214,7 @@ impl Executor for WasmExecutor {
 
 #[tokio::test]
 async fn test_wasm() {
-    let mut executor = WasmExecutor::new(
+    let executor = WasmExecutor::new(
         include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/aplusb.wasm")).to_vec(),
     );
     let res = executor
@@ -226,7 +226,7 @@ async fn test_wasm() {
 #[tokio::test]
 #[should_panic]
 async fn test_wasm_tle() {
-    let mut executor = WasmExecutor::new(
+    let executor = WasmExecutor::new(
         include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/aplusb.wasm")).to_vec(),
     );
     let res = executor
@@ -238,7 +238,7 @@ async fn test_wasm_tle() {
 #[tokio::test]
 #[should_panic]
 async fn test_wasm_mle() {
-    let mut executor = WasmExecutor::new(
+    let executor = WasmExecutor::new(
         include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/aplusb.wasm")).to_vec(),
     );
     let res = executor
@@ -252,7 +252,7 @@ async fn test_wasm_mle() {
 #[tokio::test]
 #[should_panic = "Runtime error"]
 async fn test_wasm_sleep() {
-    let mut executor = WasmExecutor::new(
+    let executor = WasmExecutor::new(
         include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/sleep.wasm")).to_vec(),
     );
     executor
@@ -273,7 +273,7 @@ fn generate_long_input() -> String {
 
 #[tokio::test]
 async fn test_long_input_scanf() {
-    let mut executor = WasmExecutor::new(
+    let executor = WasmExecutor::new(
         include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/fixtures/long_input_scanf_strip.wasm"
@@ -291,7 +291,7 @@ async fn test_long_input_scanf() {
 
 #[tokio::test]
 async fn test_long_input_cin() {
-    let mut executor = WasmExecutor::new(
+    let executor = WasmExecutor::new(
         include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/fixtures/long_input_cin_strip.wasm"
