@@ -27,18 +27,18 @@ pub enum CompilerError {
     RuntimeError(String),
 }
 
-impl CompilerError {
-    pub fn to_string(&self) -> String {
-        match self {
-            CompilerError::TimeLimitExceeded(limit) => format!("Time limit exceeded: {} ms", limit),
-            CompilerError::BuildArtifactSizeLimitExceeded(limit) => {
-                format!("Build artifact size limit exceeded: {} bytes", limit)
-            }
-            CompilerError::CompilationError(msg) => format!("Compilation error: {}", msg),
-            CompilerError::RuntimeError(msg) => format!("Runtime error: {}", msg),
-        }
-    }
-}
+// impl CompilerError {
+//     pub fn to_string(&self) -> String {
+//         match self {
+//             CompilerError::TimeLimitExceeded(limit) => format!("Time limit exceeded: {} ms", limit),
+//             CompilerError::BuildArtifactSizeLimitExceeded(limit) => {
+//                 format!("Build artifact size limit exceeded: {} bytes", limit)
+//             }
+//             CompilerError::CompilationError(msg) => format!("Compilation error: {}", msg),
+//             CompilerError::RuntimeError(msg) => format!("Runtime error: {}", msg),
+//         }
+//     }
+// }
 
 pub struct CompilerResourceLimits {
     pub time_limit_ms: u64,
