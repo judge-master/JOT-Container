@@ -33,5 +33,5 @@ jobs:
             ${{ steps.image.outputs.name }}:main
           cache-from: |
             type=gha,scope=release
-            type=gha,scope=app
+            type=gha,scope=test
           cache-to: type=gha,scope=release,mode=max

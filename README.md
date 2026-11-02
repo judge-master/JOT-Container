@@ -33,3 +33,81 @@ Rust 프로세스는 자주 사용되는 테스트 케이스를 메모리에 캐
 ## 로컬 테스트
 
 로컬에서 `cargo test`를 실행하려면 먼저 필수 환경변수를 export해야 합니다. 설정값은 테스트에서도 자동으로 제공되지 않습니다. 필요한 변수와 실행 예시는 [테스트 안내](tests/README.md)를 참고하세요.
+
+## WASI 및 언어 도구 체인
+
+기반 이미지는 Debian Trixie의 공식 최소 변형인 `debian:trixie-slim`입니다.
+SDK 버전은 `WASI_SDK_VERSION`(기본 `34.0`), 다운로드할 아키텍처는 `WASI_SDK_ARCH`로 지정합니다.
+아키텍처를 생략하면 Docker의 `TARGETARCH`를 사용하며, `amd64`는 릴리스 파일명의 `x86_64`로 변환합니다.
+WASI SDK 체크섬은 별도로 검증하지 않습니다.
+
+```sh
+docker build --build-arg WASI_SDK_VERSION=34.0 --build-arg WASI_SDK_ARCH=arm64 -t jot:trixie .
+```
+
+`rustup-stage`는 rustup과 HTTPS 다운로드에 필요한 인증서만 준비합니다.
+`wasi-language-stage`는 `RUST_VERSION`(기본 `1.96.1`)의 Rust와 `wasm32-wasip1`을 설치하고,
+배포에 필요한 컴파일러·WASI 표준 라이브러리만 `/opt/rust`에 남깁니다.
+`project-rust-stage`는 `PROJECT_RUST`(기본 `1.99.1`)의 호스트용 Rust·Cargo와
+프로젝트 빌드에 필요한 `gcc`, `libc6-dev`를 준비합니다. 도구 체인은 `/opt/project-rust`에 설치하며,
+WASI 타깃은 추가하지 않습니다. 두 Rust 버전은 별도 빌드 인자로 지정할 수 있습니다.
+Trixie 기본 Rust는 1.85.1로 서버의 최소 요구 버전(1.96.0)보다 낮고,
+backports의 컴파일러(1.96.1)와 WASI 표준 라이브러리(1.94.1)도 버전이 달라
+Rust 툴체인은 rustup으로 버전을 맞춥니다.
+`wasi-language-stage`에서는 `GO_VERSION`(기본 `1.27.3`)의 공식 Go Linux 압축파일을 다운로드해 `/opt/go`에 설치합니다.
+배포 파일의 아키텍처는 Docker의 `TARGETARCH`를 사용합니다.
+`GOROOT=/opt/go`, `GO_PATH=/opt/go/bin/go`를 사용합니다.
+`wasi-language-stage`는 WASI SDK와 Python 빌드 단계를 상속하지 않습니다.
+
+```text
+wasi-sdk-stage → build-wasi-python-template
+rustup-stage
+├── wasi-language-stage → RUST_VERSION의 WASI용 Rust + Go
+└── project-rust-stage → PROJECT_RUST의 호스트용 Rust·Cargo + 빌드 의존성
+    ├── chef → planner / build
+    └── test에 프로젝트용 Rust·Cargo 복사
+
+debian:trixie-slim → runtime ← SDK + WASI용 Rust·Go + Python 템플릿
+                    ├── test: 프로젝트용 Rust·Cargo, 빌드 도구, 소스 추가 → cargo test
+                    └── final: build의 서버 실행 파일만 추가 → 실행
+```
+
+```sh
+docker build --target wasi-language-stage -t jot-wasi-language .
+docker build --target test -t jot-test .
+```
+
+C++은 SDK 34의 예외 처리 라이브러리와 표준 Wasm 예외 처리를 사용합니다.
+SDK는 채점에 사용하는 WASI P1 sysroot만 보존합니다.
+`wasi-language-stage`에서는 Rust 호스트 표준 라이브러리, Cargo, rustdoc, 디버거 보조 도구를 제거합니다.
+Rust 라이선스·저작권 고지, 컴파일러 공유 라이브러리, `rust-lld`, WASI 표준 라이브러리와
+Go 표준 라이브러리 소스는 유지합니다. 서버 빌드는 `project-rust-stage`의 도구 체인을 사용합니다.
+`runtime`은 새 Debian 이미지에 `libc6`, `libgcc-s1`, `libstdc++6`, `libtinfo6`, `zlib1g`를 확보한 후
+각 설치 단계에서 SDK, 정리된 Rust, Go, Python 템플릿을 복사합니다.
+`final`은 `runtime`에 서버 실행 파일만 추가합니다. 기본 `GRPC_ADDR`는 `0.0.0.0:50051`입니다.
+`test`도 `runtime`에서 시작하며, `project-rust-stage`의 Rust·Cargo를 `/opt/project-rust`에 복사합니다.
+테스트는 배포용 `/opt/rust`와 동일한 SDK·Go·Python 환경을 사용합니다.
+테스트는 `cargo-chef`와 `recipe.json`을 복사해 소스 복사 전에 의존성을 빌드합니다.
+Cargo 레지스트리와 `target`은 일반 Docker 레이어에 남겨 기존 GHA `mode=max` 캐시로 재사용합니다.
+프로젝트 소스만 바뀌면 의존성 빌드 레이어를 재사용하고 `cargo test`를 다시 실행합니다.
+APT 목록은 설치한 동일한 `RUN`에서 삭제하며,
+다운로드 도구·rustup·호스트 빌드 도구의 설치 레이어는 최종 이미지에 포함하지 않습니다.
+기본 빌드 대상은 `final`입니다.
+
+SDK 다운로드 캐시와 Cargo Chef 의존성 레이어를 재사용하고,
+CI/CD도 `test`·`release` 캐시를 서로 읽습니다.
+
+## Python Wasm 템플릿 빌드
+
+`build-wasi-python-template`은 CPython 3.14.7 소스에서 빌드 보조용 네이티브 Python을 O1로 빌드한 후,
+WASI SDK의 Clang과 sysroot로 WASI Preview 1용 Python을 교차 빌드합니다.
+`scripts/build_python_template.py`로 표준 라이브러리와 1MiB의 제출 코드 저장 공간을
+포함하는 `/out/python-template.wasm`을 생성합니다.
+
+```sh
+docker build --target build-wasi-python-template -t jot-python-template .
+```
+
+`runtime`은 템플릿을 `/opt/jot/python/python-template.wasm`으로 복사하고
+`PYTHON_TEMPLATE_PATH`로 경로를 제공합니다. CPython 소스와 네이티브 빌드 도구는
+최종 이미지에 복사하지 않습니다.
