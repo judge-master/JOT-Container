@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use lazy_static::lazy_static;
 use std::sync::Arc;
 use wasmtime::{Config, Engine, Linker, Module, Store, StoreLimits, StoreLimitsBuilder, Trap};
-use wasmtime_wasi::{HostMonotonicClock, HostWallClock, WasiCtxBuilder};
+use wasmtime_wasi::{HostMonotonicClock, HostWallClock};
 use wasmtime_wasi::{
     WasiCtx, WasiCtxView, WasiView,
     p1::WasiP1Ctx,
