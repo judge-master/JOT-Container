@@ -13,7 +13,20 @@ impl Compiler for CppCompiler {
         source: &str,
         limits: CompilerResourceLimits,
     ) -> Result<CompilerResult, CompilerError> {
-        let args = ["-o", "-", "-std=c++17", "-O2", "-Wall", "-x", "c++", "-"];
+        let args = [
+            "-o",
+            "-",
+            "-std=c++17",
+            "-fwasm-exceptions",
+            "-mllvm",
+            "-wasm-use-legacy-eh=false",
+            "-lunwind",
+            "-O2",
+            "-Wall",
+            "-x",
+            "c++",
+            "-",
+        ];
 
         let mut compile_executor = LocalCompileExecutor::new(
             config::clangpp_path(),
