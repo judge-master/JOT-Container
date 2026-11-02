@@ -103,18 +103,35 @@ CI/CD도 `test`·`release` 캐시를 서로 읽습니다.
 
 ## Python Wasm 템플릿 빌드
 
-`build-wasi-python-template`은 `PYTHON_VERSION`(기본 `3.14.7`) 소스에서 빌드 보조용 네이티브 Python을 O1로 빌드한 후,
-WASI SDK의 Clang과 sysroot로 WASI Preview 1용 Python을 교차 빌드합니다.
-Debian 기본 `perl-base`의 Perl로 `scripts/build_python_template.pl`을 실행하여 표준 라이브러리와 1MiB의 제출 코드 저장 공간을
-포함하는 `/out/python-template.wasm`을 생성합니다.
+`build-wasi-python-template`은 Debian 기본 `perl-base`의 Perl로 `scripts/build_python_template.pl`을 실행합니다.
+이 스크립트가 `PYTHON_VERSION`(기본 `3.14.7`) 소스 다운로드·압축 해제부터 빌드 보조용 네이티브 Python의 O1 빌드,
+WASI SDK를 사용하는 WASI Preview 1용 Python의 O3 교차 빌드, 최종 템플릿 생성까지 수행합니다.
+표준 라이브러리와 1MiB의 제출 코드 저장 공간을 포함하는 `/out/python-template.wasm`을 생성합니다.
 템플릿 생성은 Python 인터프리터 대신 같은 소스에서 빌드한 네이티브 `Programs/_freeze_module`로
 표준 라이브러리를 동결하고, Perl로 C 진입점과 Wasm 메타데이터를 생성합니다.
 버전과 ABI가 반영된 정적 라이브러리 이름은 CPython Makefile에서 자동으로 읽습니다.
 CPython 3.11 이상을 대상으로 하며, 네이티브·WASI 빌드는 지정한 동일 소스를 사용해야 합니다.
+교차 빌드에 필요한 보조 Python은 Perl 스크립트 내부에서 빌드합니다.
+기본 출력은 단계별 진행 상황으로 제한하고, 전체 컴파일 출력과 경고는 `/build/python/<버전>/logs/`에 보관합니다.
+반복되는 WASI HACL 헤더의 매크로 재정의 경고는 해당 경고 옵션만 비활성화합니다.
+실패 시 마지막 60줄과 전체 로그 경로를 출력하며, `--verbose`를 지정하면 각 단계가 끝날 때 전체 로그를 출력합니다.
 
 ```sh
 docker build --target build-wasi-python-template -t jot-python-template .
 ```
+
+SDK와 빌드 도구가 준비된 Debian 환경에서는 스크립트만으로도 전체 과정을 실행할 수 있습니다.
+`--jobs`로 병렬 빌드 수를, `--log-dir`로 로그 경로를 지정할 수 있습니다.
+다운로드는 `--download-dir`에 캐시하고, 소스와 빌드 디렉터리는 버전별로 분리합니다.
+
+```sh
+perl scripts/build_python_template.pl --python-version 3.14.7 \
+    --work-dir /build/python --download-dir /downloads \
+    --wasi-sdk /opt/wasi-sdk --output /out/python-template.wasm
+```
+
+이미 빌드한 CPython을 다시 링크할 때는 `--python-version` 대신 기존의
+`--source-dir`, `--build-dir`, `--native-build-dir` 옵션을 사용할 수 있습니다.
 
 `runtime`은 템플릿을 `/opt/jot/python/python-template.wasm`으로 복사하고
 `PYTHON_TEMPLATE_PATH`로 경로를 제공합니다. CPython 소스와 네이티브 빌드 도구는

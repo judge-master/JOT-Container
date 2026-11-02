@@ -76,42 +76,12 @@ RUN apt-get install -y --no-install-recommends gcc libc6-dev make pkg-config xz-
 
 ARG PYTHON_VERSION
 
-RUN mkdir -p /src/cpython \
-    && wget --tries=3 "https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tar.xz" -O /tmp/python.tar.xz \
-    && tar -xJf /tmp/python.tar.xz -C /src/cpython --strip-components=1 \
-    && rm /tmp/python.tar.xz
-
-# 빌드 보조 Python만 O1로 빠르게 만들고, 아래 WASI Python의 O3는 유지한다.
-WORKDIR /build/native
-RUN CFLAGS=-O1 /src/cpython/configure --without-ensurepip --disable-test-modules \
-    && make -j "$(nproc)"
-
-WORKDIR /build/wasi
-RUN set -eu; \
-    config_site=/src/cpython/Tools/wasm/wasi/config.site-wasm32-wasi; \
-    if [ ! -f "$config_site" ]; then \
-        config_site=/src/cpython/Tools/wasm/config.site-wasm32-wasi; \
-    fi; \
-    test -f "$config_site"; \
-    CC="/opt/wasi-sdk/bin/clang --target=wasm32-wasip1 --sysroot=/opt/wasi-sdk/share/wasi-sysroot" \
-    AR=/opt/wasi-sdk/bin/llvm-ar \
-    RANLIB=/opt/wasi-sdk/bin/llvm-ranlib \
-    CONFIG_SITE="$config_site" \
-    PKG_CONFIG_PATH= \
-    PKG_CONFIG_LIBDIR=/opt/wasi-sdk/share/wasi-sysroot/lib/pkgconfig \
-    PKG_CONFIG_SYSROOT_DIR=/opt/wasi-sdk/share/wasi-sysroot \
-    /src/cpython/configure \
-        --host=wasm32-wasip1 \
-        --build="$(/src/cpython/config.guess)" \
-        --with-build-python=/build/native/python \
-        --without-ensurepip --disable-test-modules --disable-shared \
-    && make -j "$(nproc)" python.wasm
-
 COPY scripts/build_python_template.pl /build/build_python_template.pl
-# 최종 링크에서 -Wl,--strip-all로 심볼을 제거한 후 제출 코드 메타데이터를 추가한다.
-RUN perl /build/build_python_template.pl \
-    --source-dir /src/cpython --build-dir /build/wasi --native-build-dir /build/native \
-    --cc /opt/wasi-sdk/bin/clang --sysroot /opt/wasi-sdk/share/wasi-sysroot --output /out/python-template.wasm
+# 다운로드, 네이티브·WASI 빌드, 최종 링크 및 메타데이터 생성을 Perl에서 관리한다.
+RUN --mount=type=cache,target=/downloads \
+    perl /build/build_python_template.pl --python-version "${PYTHON_VERSION}" \
+    --work-dir /build/python --download-dir /downloads \
+    --wasi-sdk /opt/wasi-sdk --output /out/python-template.wasm
 
 # ---------------------------
 # Rust 설치 도구만 준비한다. 인증서는 rustup의 HTTPS 다운로드에 사용한다.
