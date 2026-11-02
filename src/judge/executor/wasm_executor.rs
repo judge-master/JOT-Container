@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use lazy_static::lazy_static;
 use std::sync::Arc;
 use wasmtime::{Config, Engine, Linker, Module, Store, StoreLimits, StoreLimitsBuilder, Trap};
-use wasmtime_wasi::{HostMonotonicClock, HostWallClock};
+use wasmtime_wasi::{HostMonotonicClock, HostWallClock, I32Exit};
 use wasmtime_wasi::{
     WasiCtx, WasiCtxView, WasiView,
     p1::WasiP1Ctx,
@@ -174,6 +174,14 @@ impl Executor for WasmExecutor {
                 .map_err(|_| ExecuteError::RuntimeError {
                     reason: Some("tokio::task::spawn_blocking() failed".into()),
                 })?;
+
+        // WASM runtime returns exit code 0 as successful execution, but it is returned as an error in wasmtime.
+        // So we need to check if the error is I32Exit(0) and treat it as a successful execution.
+        // See: https://github.com/judge-master/JOT-Container/pull/22#issuecomment-6572822702
+        let result = match result {
+            Err(e) if matches!(e.downcast_ref::<I32Exit>(), Some(I32Exit(0))) => Ok(()),
+            other => other,
+        };
 
         match result {
             Ok(()) => Ok(ExecuteResult {
