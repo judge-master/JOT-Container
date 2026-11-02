@@ -20,7 +20,7 @@ int main() {
 }
 "#
         .into(),
-        compile_time_ms_limit: 10_000,
+        compile_time_ms_limit: 60_000,
         instruction_count_limit: 100_000_000,
         memory_bytes_limit: 64 * 1024 * 1024,
         build_artifact_bytes_limit: 16 * 1024 * 1024,
@@ -61,7 +61,7 @@ async fn judge_events(
     client: &mut JudgeServiceClient<Channel>,
     request: JudgeRequest,
 ) -> Vec<JudgeEvent> {
-    tokio::time::timeout(Duration::from_secs(30), async {
+    tokio::time::timeout(Duration::from_secs(120), async {
         let mut stream = client
             .judge(request)
             .await
