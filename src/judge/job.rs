@@ -60,7 +60,7 @@ impl JudgeJob {
         let compiler = compiler::get_compiler(self.request.language());
         // Compile the source code
 
-        let compiler_result: compiler::CompilerResult = match compiler
+        let compiler_result = match compiler
             .compile(
                 &self.request.source_code,
                 compiler::CompilerResourceLimits {
@@ -71,74 +71,45 @@ impl JudgeJob {
             .await
         {
             Ok(compiler_result) => compiler_result,
-            Err(e) => match e {
-                compiler::CompilerError::CompilationError(msg) => {
-                    let judge_result = jot_proto::judge::v1::JudgeResult {
-                        verdict: Some(jot_proto::judge::v1::judge_result::Verdict::CompileError(
+            Err(e) => {
+                let verdict = match e {
+                    compiler::CompilerError::CompilationError(msg) => {
+                        Some(jot_proto::judge::v1::judge_result::Verdict::CompileError(
                             jot_proto::judge::v1::JudgeCompileError {
                                 compiler_diagnostics: msg,
                             },
-                        )),
-                    };
-                    let event = JudgeEvent {
-                        request_id: self.request.request_id,
-                        payload: Some(jot_proto::judge::v1::judge_event::Payload::Result(
-                            judge_result,
-                        )),
-                    };
-                    self.response_channel.send(event).await?;
-                    return Ok(());
-                }
-                compiler::CompilerError::TimeLimitExceeded(limit) => {
-                    let judge_result = jot_proto::judge::v1::JudgeResult {
-                        verdict: Some(jot_proto::judge::v1::judge_result::Verdict::CompileTle(
+                        ))
+                    }
+                    compiler::CompilerError::TimeLimitExceeded(limit) => {
+                        Some(jot_proto::judge::v1::judge_result::Verdict::CompileTle(
                             jot_proto::judge::v1::JudgeCompileTle {
                                 max_compile_time_ms: limit,
                             },
-                        )),
-                    };
-                    let event = JudgeEvent {
-                        request_id: self.request.request_id,
-                        payload: Some(jot_proto::judge::v1::judge_event::Payload::Result(
-                            judge_result,
-                        )),
-                    };
-                    self.response_channel.send(event).await?;
-                    return Ok(());
-                }
-                compiler::CompilerError::BuildArtifactSizeLimitExceeded(limit) => {
-                    let judge_result = jot_proto::judge::v1::JudgeResult {
-                        verdict: Some(jot_proto::judge::v1::judge_result::Verdict::CompileBle(
+                        ))
+                    }
+                    compiler::CompilerError::BuildArtifactSizeLimitExceeded(limit) => {
+                        Some(jot_proto::judge::v1::judge_result::Verdict::CompileBle(
                             jot_proto::judge::v1::JudgeCompileBle {
                                 max_build_artifact_bytes: limit,
                             },
-                        )),
-                    };
-                    let event = JudgeEvent {
-                        request_id: self.request.request_id,
-                        payload: Some(jot_proto::judge::v1::judge_event::Payload::Result(
-                            judge_result,
-                        )),
-                    };
-                    self.response_channel.send(event).await?;
-                    return Ok(());
-                }
-                compiler::CompilerError::RuntimeError(msg) => {
-                    let judge_result = jot_proto::judge::v1::JudgeResult {
-                        verdict: Some(jot_proto::judge::v1::judge_result::Verdict::SystemError(
+                        ))
+                    }
+                    compiler::CompilerError::RuntimeError(msg) => {
+                        Some(jot_proto::judge::v1::judge_result::Verdict::SystemError(
                             jot_proto::judge::v1::JudgeSystemError { error_message: msg },
-                        )),
-                    };
-                    let event = JudgeEvent {
-                        request_id: self.request.request_id,
-                        payload: Some(jot_proto::judge::v1::judge_event::Payload::Result(
-                            judge_result,
-                        )),
-                    };
-                    self.response_channel.send(event).await?;
-                    return Ok(());
-                }
-            },
+                        ))
+                    }
+                };
+                let judge_result = jot_proto::judge::v1::JudgeResult { verdict };
+                let event = JudgeEvent {
+                    request_id: self.request.request_id,
+                    payload: Some(jot_proto::judge::v1::judge_event::Payload::Result(
+                        judge_result,
+                    )),
+                };
+                self.response_channel.send(event).await?;
+                return Ok(());
+            }
         };
 
         // 테스트 케이스 다운로드 시작 이벤트 발송
