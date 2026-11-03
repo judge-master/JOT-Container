@@ -241,16 +241,6 @@ impl JudgeJob {
                     error_message: error.unwrap_or_else(|| "Unknown execution error".into()),
                 })
             }
-            grader::Verdict::CompilationError(error) => {
-                Verdict::CompileError(proto::JudgeCompileError {
-                    compiler_diagnostics: error.unwrap_or(compiler_result.diagnostics),
-                })
-            }
-            grader::Verdict::BuildArtifactLimitExceeded(limit) => {
-                Verdict::BuildArtifactLimitExceeded(proto::JudgeBle {
-                    max_build_artifact_bytes: limit,
-                })
-            }
         };
 
         let judge_result = proto::JudgeResult {

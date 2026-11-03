@@ -8,7 +8,6 @@ pub enum ExecuteError {
     TimeLimitExceeded(u64),
     MemoryLimitExceeded(u64),
     RuntimeError { reason: Option<String> },
-    CompilationError { message: Option<String> },
 }
 #[derive(Debug)]
 pub struct ExecuteResult {

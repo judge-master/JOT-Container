@@ -13,11 +13,9 @@ pub struct Grader<C: Checker, E: Executor> {
 pub enum Verdict {
     Accepted,
     WrongAnswer,
-    CompilationError(Option<String>),
     RuntimeError(Option<String>),
     TimeLimitExceeded(u64),
     MemoryLimitExceeded(u64),
-    BuildArtifactLimitExceeded(u64),
     SystemError(Option<String>),
 }
 #[derive(Debug)]
@@ -70,10 +68,6 @@ impl<C: Checker, E: Executor> Grader<C, E> {
                 }
                 Err(ExecuteError::RuntimeError { reason }) => {
                     grade_result.verdict = Verdict::RuntimeError(reason);
-                    return grade_result;
-                }
-                Err(ExecuteError::CompilationError { message }) => {
-                    grade_result.verdict = Verdict::CompilationError(message);
                     return grade_result;
                 }
             }
