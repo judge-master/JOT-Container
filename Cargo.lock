@@ -1040,9 +1040,9 @@ dependencies = [
 
 [[package]]
 name = "jot-proto"
-version = "1.0.8"
+version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0477c59b9e6df0c0cb990d7eaeddb3846b6787a65a561dfefcab6b633c7d4862"
+checksum = "4df4cc95038938602dad7e99bd936e1d3aa74716142b31e250cc928797524ba9"
 dependencies = [
  "prost",
  "tonic",
