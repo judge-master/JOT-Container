@@ -8,7 +8,6 @@ use crate::judge::compiler::{CompilerError, CompilerResourceLimits};
 #[derive(Debug)]
 pub struct CompileExecuteResult {
     pub output: Vec<u8>,
-    pub diagnostics: String,
 }
 
 #[async_trait]

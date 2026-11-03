@@ -1,8 +1,7 @@
-use crate::judge::{Problem, testcase::Testcase};
+use crate::judge::Problem;
 
 use super::checker::Checker;
 use super::executor::{ExecuteError, ExecuteResult, Executor};
-use std::sync::Arc;
 
 pub struct Grader<C: Checker, E: Executor> {
     pub checker: C,
@@ -13,11 +12,9 @@ pub struct Grader<C: Checker, E: Executor> {
 pub enum Verdict {
     Accepted,
     WrongAnswer,
-    CompilationError(Option<String>),
     RuntimeError(Option<String>),
     TimeLimitExceeded(u64),
     MemoryLimitExceeded(u64),
-    BuildArtifactLimitExceeded(u64),
     SystemError(Option<String>),
 }
 #[derive(Debug)]
@@ -41,7 +38,7 @@ impl<C: Checker, E: Executor> Grader<C, E> {
             instruction_count: 0,
         };
 
-        for (idx, test) in problem.tests.iter().enumerate() {
+        for (_, test) in problem.tests.iter().enumerate() {
             let res = executor
                 .execute(&test.input, problem.memory_limit, problem.instruction_limit)
                 .await;
@@ -72,10 +69,6 @@ impl<C: Checker, E: Executor> Grader<C, E> {
                     grade_result.verdict = Verdict::RuntimeError(reason);
                     return grade_result;
                 }
-                Err(ExecuteError::CompilationError { message }) => {
-                    grade_result.verdict = Verdict::CompilationError(message);
-                    return grade_result;
-                }
             }
         }
 
@@ -88,6 +81,7 @@ impl<C: Checker, E: Executor> Grader<C, E> {
 async fn test_grader() {
     use super::checker::lcmp_checker::LcmpChecker;
     use super::executor::aplusb_executor::APlusBExecutor;
+    use crate::judge::testcase::Testcase;
     use std::sync::Arc;
 
     let problem = Problem {
@@ -105,7 +99,7 @@ async fn test_grader() {
         instruction_limit: 100000000,
     };
 
-    let mut grader = Grader::new(LcmpChecker, APlusBExecutor);
+    let grader = Grader::new(LcmpChecker, APlusBExecutor);
     let result = grader.grade(problem).await;
 
     assert_eq!(matches!(result.verdict, Verdict::Accepted), true);
@@ -115,6 +109,7 @@ async fn test_grader() {
 async fn test_grader_instruction_limit() {
     use super::checker::lcmp_checker::LcmpChecker;
     use super::executor::aplusb_executor::APlusBExecutor;
+    use crate::judge::testcase::Testcase;
     use std::sync::Arc;
 
     let problem = Problem {
@@ -132,7 +127,7 @@ async fn test_grader_instruction_limit() {
         instruction_limit: 1,
     };
 
-    let mut grader = Grader::new(LcmpChecker, APlusBExecutor);
+    let grader = Grader::new(LcmpChecker, APlusBExecutor);
     let result = grader.grade(problem).await;
 
     if let Verdict::TimeLimitExceeded(_) = result.verdict {

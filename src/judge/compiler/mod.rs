@@ -16,7 +16,6 @@ pub fn get_compiler(language: jot_proto::judge::v1::Language) -> Box<dyn Compile
 
 pub struct CompilerResult {
     pub executor: Box<dyn Executor>,
-    pub diagnostics: String,
 }
 
 #[derive(Debug)]
