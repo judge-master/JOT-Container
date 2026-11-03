@@ -84,7 +84,7 @@ fn terminal_result(events: &[JudgeEvent]) -> &JudgeResult {
             matches!(
                 &event.payload,
                 Some(
-                    Payload::Recieved(_)
+                    Payload::Received(_)
                         | Payload::Compiling(_)
                         | Payload::FetchingTestCasesMetadata(_)
                         | Payload::Running(_)
@@ -106,13 +106,13 @@ fn assert_compile_progress(events: &[JudgeEvent]) {
         3,
         "expected received, compiling, result: {events:?}"
     );
-    assert!(matches!(events[0].payload, Some(Payload::Recieved(_))));
+    assert!(matches!(events[0].payload, Some(Payload::Received(_))));
     assert!(matches!(events[1].payload, Some(Payload::Compiling(_))));
 }
 
 fn assert_complete(events: &[JudgeEvent]) {
     assert_eq!(events.len(), 5, "unexpected event sequence: {events:?}");
-    assert!(matches!(events[0].payload, Some(Payload::Recieved(_))));
+    assert!(matches!(events[0].payload, Some(Payload::Received(_))));
     assert!(matches!(events[1].payload, Some(Payload::Compiling(_))));
     assert!(matches!(
         events[2].payload,

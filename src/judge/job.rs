@@ -27,7 +27,7 @@ impl JudgeJob {
         // send RECEIVED event to the response channel
         let event = JudgeEvent {
             request_id: request.request_id,
-            payload: Some(jot_proto::judge::v1::judge_event::Payload::Recieved(
+            payload: Some(jot_proto::judge::v1::judge_event::Payload::Received(
                 jot_proto::judge::v1::JudgeReceived {},
             )),
         };
