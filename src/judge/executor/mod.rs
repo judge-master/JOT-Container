@@ -1,7 +1,6 @@
 pub mod wasm_executor;
 
 use async_trait::async_trait;
-use tokio::io::{AsyncRead, AsyncWriteExt};
 
 #[derive(Debug)]
 pub enum ExecuteError {

@@ -135,10 +135,7 @@ impl CompileExecutor for LocalCompileExecutor {
                     }));
                 }
 
-                Ok(CompileExecuteResult {
-                    output,
-                    diagnostics,
-                })
+                Ok(CompileExecuteResult { output })
             },
         )
         .await
@@ -180,7 +177,6 @@ async fn captures_stdout_as_bytes_and_stderr_as_diagnostics() {
         .unwrap();
 
     assert_eq!(result.output, b"wasm\xff");
-    assert_eq!(result.diagnostics, "warning");
 }
 
 #[tokio::test]
