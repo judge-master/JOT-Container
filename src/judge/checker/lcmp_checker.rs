@@ -45,7 +45,7 @@ mod tests {
     use super::*;
 
     async fn check(output: &str, answer: &str) -> bool {
-        let mut checker: Box<dyn Checker> = Box::new(LcmpChecker::new());
+        let checker: Box<dyn Checker> = Box::new(LcmpChecker::new());
         let res = checker.check(output, answer).await.expect("Checker error");
         return res;
     }

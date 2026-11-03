@@ -24,7 +24,6 @@ impl Compiler for CCompiler {
         let result = compile_executor.execute(source, limits).await?;
         Ok(CompilerResult {
             executor: Box::new(WasmExecutor::new(result.output)),
-            diagnostics: result.diagnostics,
         })
     }
 }

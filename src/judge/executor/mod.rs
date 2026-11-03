@@ -1,14 +1,12 @@
 pub mod wasm_executor;
 
 use async_trait::async_trait;
-use tokio::io::{AsyncRead, AsyncWriteExt};
 
 #[derive(Debug)]
 pub enum ExecuteError {
     TimeLimitExceeded(u64),
     MemoryLimitExceeded(u64),
     RuntimeError { reason: Option<String> },
-    CompilationError { message: Option<String> },
 }
 #[derive(Debug)]
 pub struct ExecuteResult {

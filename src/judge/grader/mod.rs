@@ -14,11 +14,9 @@ pub struct Grader<C: Checker, E: Executor> {
 pub enum Verdict {
     Accepted,
     WrongAnswer,
-    CompilationError(Option<String>),
     RuntimeError(Option<String>),
     TimeLimitExceeded(u64),
     MemoryLimitExceeded(u64),
-    BuildArtifactLimitExceeded(u64),
     SystemError(Option<String>),
 }
 #[derive(Debug)]
@@ -119,11 +117,6 @@ impl<C: Checker + 'static, E: Executor + 'static> Grader<C, E> {
                         let _ = tx.send(GradeStreamData::Result(grade_result)).await;
                         return;
                     }
-                    Err(ExecuteError::CompilationError { message }) => {
-                        grade_result.verdict = Verdict::CompilationError(message);
-                        let _ = tx.send(GradeStreamData::Result(grade_result)).await;
-                        return;
-                    }
                 }
             }
 
@@ -141,6 +134,7 @@ impl<C: Checker + 'static, E: Executor + 'static> Grader<C, E> {
 async fn test_grader() {
     use super::checker::lcmp_checker::LcmpChecker;
     use super::executor::aplusb_executor::APlusBExecutor;
+    use crate::judge::testcase::Testcase;
     use std::sync::Arc;
 
     let problem = Problem {
@@ -168,6 +162,7 @@ async fn test_grader() {
 async fn test_grader_instruction_limit() {
     use super::checker::lcmp_checker::LcmpChecker;
     use super::executor::aplusb_executor::APlusBExecutor;
+    use crate::judge::testcase::Testcase;
     use std::sync::Arc;
 
     let problem = Problem {

@@ -5,7 +5,7 @@ use crate::judge::{
     grader::{self, Grader},
     testcase::{TestcaseFetcher, lru_fetcher::LruTestcaseFetcher},
 };
-use jot_proto::judge::v1::JudgeEvent;
+use jot_proto::judge::v1::{self as proto, JudgeEvent, judge_result::Verdict};
 use lazy_static::lazy_static;
 
 pub type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -24,15 +24,11 @@ impl JudgeJob {
         request: jot_proto::judge::v1::JudgeRequest,
         response_channel: tokio::sync::mpsc::Sender<jot_proto::judge::v1::JudgeEvent>,
     ) -> Result<Self, String> {
-        // send JudgePhase::RECEIVED event to the response channel
+        // send RECEIVED event to the response channel
         let event = JudgeEvent {
             request_id: request.request_id,
-            payload: Some(jot_proto::judge::v1::judge_event::Payload::Progress(
-                jot_proto::judge::v1::JudgeProgress {
-                    phase: jot_proto::judge::v1::JudgePhase::Received as i32,
-                    completed_cases: 0,
-                    total_cases: 0, // TODO: set total_cases to the number of test cases in the request
-                },
+            payload: Some(jot_proto::judge::v1::judge_event::Payload::Received(
+                jot_proto::judge::v1::JudgeReceived {},
             )),
         };
         response_channel
@@ -47,12 +43,6 @@ impl JudgeJob {
     }
 
     pub async fn run(self) -> Result<(), Error> {
-        let limits = self
-            .request
-            .limits
-            .as_ref()
-            .ok_or("Resource limits not provided in the request")?;
-
         // preload를 여기서 호출할 수 있음
         // PROBLEM_FETCHER.preload(self.request.problem_id);
 
@@ -60,12 +50,8 @@ impl JudgeJob {
         self.response_channel
             .send(JudgeEvent {
                 request_id: self.request.request_id,
-                payload: Some(jot_proto::judge::v1::judge_event::Payload::Progress(
-                    jot_proto::judge::v1::JudgeProgress {
-                        phase: jot_proto::judge::v1::JudgePhase::Compiling as i32,
-                        completed_cases: 0,
-                        total_cases: 0, // TODO: set total_cases to the number of test cases in the request
-                    },
+                payload: Some(jot_proto::judge::v1::judge_event::Payload::Compiling(
+                    jot_proto::judge::v1::JudgeCompiling {},
                 )),
             })
             .await?;
@@ -78,21 +64,43 @@ impl JudgeJob {
             .compile(
                 &self.request.source_code,
                 compiler::CompilerResourceLimits {
-                    memory_limit_byte: 1000 * 1024 * 1024, // 1GB
-                    time_limit_ms: 1000 * 1000,
-                    build_artifact_size_limit_byte: limits.build_artifact_bytes,
+                    time_limit_ms: self.request.compile_time_ms_limit,
+                    build_artifact_size_limit_byte: self.request.build_artifact_bytes_limit,
                 },
             )
             .await
         {
             Ok(compiler_result) => compiler_result,
             Err(e) => {
-                let judge_result = jot_proto::judge::v1::JudgeResult {
-                    verdict: jot_proto::judge::v1::Verdict::CompilationError as i32,
-                    compiler_diagnostics: e.to_string(),
-                    ..Default::default()
+                let verdict = match e {
+                    compiler::CompilerError::CompilationError(msg) => {
+                        Some(jot_proto::judge::v1::judge_result::Verdict::CompileError(
+                            jot_proto::judge::v1::JudgeCompileError {
+                                compiler_diagnostics: msg,
+                            },
+                        ))
+                    }
+                    compiler::CompilerError::TimeLimitExceeded(limit) => {
+                        Some(jot_proto::judge::v1::judge_result::Verdict::CompileTle(
+                            jot_proto::judge::v1::JudgeCompileTle {
+                                max_compile_time_ms: limit,
+                            },
+                        ))
+                    }
+                    compiler::CompilerError::BuildArtifactSizeLimitExceeded(limit) => {
+                        Some(jot_proto::judge::v1::judge_result::Verdict::CompileBle(
+                            jot_proto::judge::v1::JudgeCompileBle {
+                                max_build_artifact_bytes: limit,
+                            },
+                        ))
+                    }
+                    compiler::CompilerError::RuntimeError(msg) => {
+                        Some(jot_proto::judge::v1::judge_result::Verdict::SystemError(
+                            jot_proto::judge::v1::JudgeSystemError { error_message: msg },
+                        ))
+                    }
                 };
-                // 컴파일 에러 이벤트 발송
+                let judge_result = jot_proto::judge::v1::JudgeResult { verdict };
                 let event = JudgeEvent {
                     request_id: self.request.request_id,
                     payload: Some(jot_proto::judge::v1::judge_event::Payload::Result(
@@ -108,21 +116,19 @@ impl JudgeJob {
         self.response_channel
             .send(JudgeEvent {
                 request_id: self.request.request_id,
-                payload: Some(jot_proto::judge::v1::judge_event::Payload::Progress(
-                    jot_proto::judge::v1::JudgeProgress {
-                        phase: jot_proto::judge::v1::JudgePhase::FetchingCases as i32,
-                        completed_cases: 0,
-                        total_cases: 0, // TODO: set total_cases to the number of test cases in the request
-                    },
-                )),
+                payload: Some(
+                    jot_proto::judge::v1::judge_event::Payload::FetchingTestCasesMetadata(
+                        proto::JudgeFetchingTestCasesMetadata {},
+                    ),
+                ),
             })
             .await?;
 
         let Ok(testcases) = TESTCASE_FETCHER.get(self.request.problem_id).await else {
             let judge_result = jot_proto::judge::v1::JudgeResult {
-                verdict: jot_proto::judge::v1::Verdict::SystemError as i32,
-                error_message: Some("Failed to fetch testcases".into()),
-                ..Default::default()
+                verdict: Some(Verdict::SystemError(proto::JudgeSystemError {
+                    error_message: "Failed to fetch testcases".into(),
+                })),
             };
             let event = JudgeEvent {
                 request_id: self.request.request_id,
@@ -135,9 +141,9 @@ impl JudgeJob {
         };
         let Some(testcases) = testcases else {
             let judge_result = jot_proto::judge::v1::JudgeResult {
-                verdict: jot_proto::judge::v1::Verdict::SystemError as i32,
-                error_message: Some("Testcases not found".into()),
-                ..Default::default()
+                verdict: Some(Verdict::SystemError(proto::JudgeSystemError {
+                    error_message: "Testcases not found".into(),
+                })),
             };
             let event = JudgeEvent {
                 request_id: self.request.request_id,
@@ -149,15 +155,16 @@ impl JudgeJob {
             return Ok(());
         };
 
+        let total_cases = testcases.len() as u32;
+
         // 실행 중 이벤트 발송
         self.response_channel
             .send(JudgeEvent {
                 request_id: self.request.request_id,
-                payload: Some(jot_proto::judge::v1::judge_event::Payload::Progress(
-                    jot_proto::judge::v1::JudgeProgress {
-                        phase: jot_proto::judge::v1::JudgePhase::Running as i32,
+                payload: Some(jot_proto::judge::v1::judge_event::Payload::Running(
+                    proto::JudgeRunning {
                         completed_cases: 0,
-                        total_cases: 0, // TODO: set total_cases to the number of test cases in the request
+                        total_cases,
                     },
                 )),
             })
@@ -166,8 +173,8 @@ impl JudgeJob {
         let grader = Grader::new(LcmpChecker::new(), compiler_result.executor);
 
         let mut stream = grader.grade_stream(Problem {
-            memory_limit: limits.memory_bytes,
-            instruction_limit: limits.instruction_count,
+            memory_limit: self.request.memory_bytes_limit,
+            instruction_limit: self.request.instruction_count_limit,
             tests: testcases,
         });
         let grade_result = loop {
@@ -177,8 +184,9 @@ impl JudgeJob {
                         request_id: self.request.request_id,
                         payload: Some(jot_proto::judge::v1::judge_event::Payload::Result(
                             jot_proto::judge::v1::JudgeResult {
-                                verdict: jot_proto::judge::v1::Verdict::SystemError as i32,
-                                error_message: Some("Grader stream closed unexpectedly".into()),
+                                verdict: Some(Verdict::SystemError(proto::JudgeSystemError {
+                                    error_message: "Grader stream closed unexpectedly".into(),
+                                })),
                                 ..Default::default()
                             },
                         )),
@@ -193,9 +201,8 @@ impl JudgeJob {
                 } => {
                     let event = JudgeEvent {
                         request_id: self.request.request_id,
-                        payload: Some(jot_proto::judge::v1::judge_event::Payload::Progress(
-                            jot_proto::judge::v1::JudgeProgress {
-                                phase: jot_proto::judge::v1::JudgePhase::Running as i32,
+                        payload: Some(jot_proto::judge::v1::judge_event::Payload::Running(
+                            proto::JudgeRunning {
                                 completed_cases,
                                 total_cases,
                             },
@@ -209,41 +216,36 @@ impl JudgeJob {
             }
         };
 
-        let (verdict, error) = match grade_result.verdict {
-            grader::Verdict::Accepted => (jot_proto::judge::v1::Verdict::Accepted, None),
-            grader::Verdict::WrongAnswer => (jot_proto::judge::v1::Verdict::WrongAnswer, None),
-            grader::Verdict::TimeLimitExceeded(time) => (
-                jot_proto::judge::v1::Verdict::TimeLimitExceeded,
-                Some(format!("Time limit exceeded: {} ms", time)),
-            ),
-            grader::Verdict::MemoryLimitExceeded(memory) => (
-                jot_proto::judge::v1::Verdict::MemoryLimitExceeded,
-                Some(format!("Memory limit exceeded: {} bytes", memory)),
-            ),
-            grader::Verdict::RuntimeError(e) => (
-                jot_proto::judge::v1::Verdict::RuntimeError,
-                Some(format!("Runtime error: {:?}", e)),
-            ),
-            grader::Verdict::CompilationError(e) => (
-                jot_proto::judge::v1::Verdict::CompilationError,
-                Some(format!("Compilation error: {:?}", e)),
-            ),
-            grader::Verdict::SystemError(e) => (
-                jot_proto::judge::v1::Verdict::SystemError,
-                Some(format!("System error: {:?}", e)),
-            ),
-            grader::Verdict::BuildArtifactLimitExceeded(e) => (
-                jot_proto::judge::v1::Verdict::BuildArtifactLimitExceeded,
-                Some(format!("Build artifact limit exceeded: {:?}", e)),
-            ),
+        let verdict = match grade_result.verdict {
+            // 현재 subproblem이 지원되지 않기 때문에 맞은 subproblem 개수는 1
+            grader::Verdict::Accepted => Verdict::Complete(proto::JudgeComplete {
+                correct_subproblems: 1,
+                total_subproblems: 1,
+                instruction_count: grade_result.instruction_count,
+                memory_bytes: grade_result.memory_used,
+            }),
+            grader::Verdict::WrongAnswer => Verdict::WrongAnswer(proto::JudgeWrongAnswer {
+                message: "Wrong answer".into(),
+            }),
+            grader::Verdict::TimeLimitExceeded(limit) => {
+                Verdict::TimeLimitExceeded(proto::JudgeTle {
+                    max_instruction_count: limit,
+                })
+            }
+            grader::Verdict::MemoryLimitExceeded(limit) => {
+                Verdict::MemoryLimitExceeded(proto::JudgeMle {
+                    max_memory_bytes: limit,
+                })
+            }
+            grader::Verdict::RuntimeError(error) | grader::Verdict::SystemError(error) => {
+                Verdict::SystemError(proto::JudgeSystemError {
+                    error_message: error.unwrap_or_else(|| "Unknown execution error".into()),
+                })
+            }
         };
 
-        let judge_result = jot_proto::judge::v1::JudgeResult {
-            verdict: verdict as i32,
-            compiler_diagnostics: compiler_result.diagnostics,
-            error_message: error,
-            max_memory_bytes: Some(grade_result.memory_used),
-            max_instruction_count: Some(grade_result.instruction_count),
+        let judge_result = proto::JudgeResult {
+            verdict: Some(verdict),
         };
         let event = JudgeEvent {
             request_id: self.request.request_id,
