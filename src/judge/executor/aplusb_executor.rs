@@ -48,7 +48,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_1() {
-        let mut executor: Box<dyn Executor> = Box::new(APlusBExecutor::new());
+        let executor: Box<dyn Executor> = Box::new(APlusBExecutor::new());
         let res = executor
             .execute("1 2", 1048576, 100000)
             .await
@@ -57,7 +57,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_2() {
-        let mut executor: Box<dyn Executor> = Box::new(APlusBExecutor::new());
+        let executor: Box<dyn Executor> = Box::new(APlusBExecutor::new());
         let res = executor
             .execute("100 200", 1048576, 100000)
             .await
@@ -66,7 +66,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_3() {
-        let mut executor: Box<dyn Executor> = Box::new(APlusBExecutor::new());
+        let executor: Box<dyn Executor> = Box::new(APlusBExecutor::new());
         let res = executor
             .execute("123 45", 1048576, 100000)
             .await
