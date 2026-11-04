@@ -2,8 +2,6 @@ use super::{ExecuteError, ExecuteResult, Executor};
 use async_trait::async_trait;
 use lazy_static::lazy_static;
 use std::sync::Arc;
-use std::time::Duration;
-use tokio::time::sleep;
 use wasmtime::{Config, Engine, Linker, Module, ResourceLimiter, Store, Trap};
 use wasmtime_wasi::{HostMonotonicClock, HostWallClock, I32Exit};
 use wasmtime_wasi::{
@@ -88,7 +86,7 @@ impl MyResourceLimiter {
 impl ResourceLimiter for MyResourceLimiter {
     fn memory_growing(
         &mut self,
-        current: usize,
+        _current: usize,
         desired: usize,
         _maximum: Option<usize>,
     ) -> wasmtime::Result<bool> {
@@ -103,7 +101,7 @@ impl ResourceLimiter for MyResourceLimiter {
 
     fn table_growing(
         &mut self,
-        current: usize,
+        _current: usize,
         desired: usize,
         _maximum: Option<usize>,
     ) -> wasmtime::Result<bool> {
@@ -231,7 +229,7 @@ impl Executor for WasmExecutor {
                 reason: Some("default.typed() failed".into()),
             })?;
 
-        let (result, mut store) =
+        let (result, store) =
             tokio::task::spawn_blocking(move || (default.call(&mut store, ()), store))
                 .await
                 .map_err(|_| ExecuteError::RuntimeError {
@@ -249,11 +247,8 @@ impl Executor for WasmExecutor {
         match result {
             Ok(()) => Ok(ExecuteResult {
                 output: String::from_utf8_lossy(memory_output.contents().iter().as_slice()).into(),
-                memory_used: //instance
-                    // .get_memory(&mut store, "memory")
-                    // .map(|m| m.size(&store) * m.page_size(&store))
-                    // .unwrap_or(0),
-                    (store.data().limit.memory_used + store.data().limit.table_used) as u64,
+                memory_used: (store.data().limit.memory_used + store.data().limit.table_used)
+                    as u64,
                 instruction_count: initial_fuel - store.get_fuel().unwrap(),
             }),
             Err(_) if store.data().limit.memory_limit_exceeded => {
