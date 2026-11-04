@@ -286,28 +286,24 @@ async fn test_wasm() {
     assert_eq!(res.output.trim(), "3");
 }
 #[tokio::test]
-#[should_panic]
 async fn test_wasm_tle() {
     let executor = WasmExecutor::new(
         include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/aplusb.wasm")).to_vec(),
     );
-    let res = executor
+    let result = executor
         .execute("1 2", 1048576, 10)
-        .await
-        .expect("Runtime error");
-    assert_eq!(res.output.trim(), "3");
+        .await;
+    assert!(matches!(result, Err(ExecuteError::TimeLimitExceeded(_))));
 }
 #[tokio::test]
-#[should_panic]
 async fn test_wasm_mle() {
     let executor = WasmExecutor::new(
         include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/aplusb.wasm")).to_vec(),
     );
-    let res = executor
+    let result = executor
         .execute("1 2", 1000, 100000)
-        .await
-        .expect("Runtime error");
-    assert_eq!(res.output.trim(), "3");
+        .await;
+    assert!(matches!(result, Err(ExecuteError::MemoryLimitExceeded(_))));
 }
 
 // poll_oneoff 를 disable 했기 때문에 이 fixture는 런타임 에러가 나야 함
