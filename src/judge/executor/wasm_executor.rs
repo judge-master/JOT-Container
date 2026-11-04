@@ -2,7 +2,9 @@ use super::{ExecuteError, ExecuteResult, Executor};
 use async_trait::async_trait;
 use lazy_static::lazy_static;
 use std::sync::Arc;
-use wasmtime::{Config, Engine, Linker, Module, Store, StoreLimits, StoreLimitsBuilder, Trap};
+use std::time::Duration;
+use tokio::time::sleep;
+use wasmtime::{Config, Engine, Linker, Module, ResourceLimiter, Store, Trap};
 use wasmtime_wasi::{HostMonotonicClock, HostWallClock, I32Exit};
 use wasmtime_wasi::{
     WasiCtx, WasiCtxView, WasiView,
@@ -59,11 +61,68 @@ impl WasmExecutor {
 
 struct MyState {
     ctx: WasiP1Ctx,
-    limit: StoreLimits,
+    limit: MyResourceLimiter,
 }
 impl WasiView for MyState {
     fn ctx(&mut self) -> WasiCtxView<'_> {
         self.ctx.ctx()
+    }
+}
+
+struct MyResourceLimiter {
+    memory_limit: usize,
+    memory_limit_exceeded: bool,
+    memory_used: usize,
+    table_used: usize,
+}
+impl MyResourceLimiter {
+    fn new(memory_limit: usize) -> Self {
+        Self {
+            memory_limit,
+            memory_limit_exceeded: false,
+            memory_used: 0,
+            table_used: 0,
+        }
+    }
+}
+impl ResourceLimiter for MyResourceLimiter {
+    fn memory_growing(
+        &mut self,
+        current: usize,
+        desired: usize,
+        _maximum: Option<usize>,
+    ) -> wasmtime::Result<bool> {
+        self.memory_used = current;
+        if self.table_used + desired > self.memory_limit {
+            self.memory_limit_exceeded = true;
+            return Err(wasmtime::Error::msg("Memory limit exceeded"));
+        }
+        self.memory_used = desired;
+        Ok(true)
+    }
+
+    fn table_growing(
+        &mut self,
+        current: usize,
+        desired: usize,
+        _maximum: Option<usize>,
+    ) -> wasmtime::Result<bool> {
+        self.table_used = current * 8;
+        let desired_table_used = desired * 8;
+        if self.memory_used + desired_table_used > self.memory_limit {
+            self.memory_limit_exceeded = true;
+            return Err(wasmtime::Error::msg("Memory limit exceeded"));
+        }
+        self.table_used = desired_table_used;
+        Ok(true)
+    }
+
+    fn instances(&self) -> usize {
+        1
+    }
+
+    fn memories(&self) -> usize {
+        1
     }
 }
 
@@ -76,12 +135,6 @@ impl Executor for WasmExecutor {
         time_limit: u64,
     ) -> Result<ExecuteResult, ExecuteError> {
         let engine = self.engine.clone();
-
-        let limit = StoreLimitsBuilder::new()
-            .memory_size(memory_limit as usize)
-            .memories(1)
-            .instances(1)
-            .build();
 
         let mut linker = Linker::<MyState>::new(&engine);
         if let Err(_) = wasmtime_wasi::p1::add_to_linker_sync(&mut linker, |s| &mut s.ctx) {
@@ -133,7 +186,7 @@ impl Executor for WasmExecutor {
             &engine,
             MyState {
                 ctx: wasi,
-                limit: limit,
+                limit: MyResourceLimiter::new(memory_limit as usize),
             },
         );
         store.limiter(|store| &mut store.limit);
@@ -154,12 +207,17 @@ impl Executor for WasmExecutor {
                 reason: Some("linker.module() failed".into()),
             })?;
 
-        let instance =
-            linker
-                .instantiate(&mut store, &module)
-                .map_err(|_| ExecuteError::RuntimeError {
-                    reason: Some("linker.instantiate() failed".into()),
-                })?;
+        let instance = match linker.instantiate(&mut store, &module) {
+            Ok(instance) => instance,
+            Err(_) if store.data().limit.memory_limit_exceeded => {
+                return Err(ExecuteError::MemoryLimitExceeded(memory_limit));
+            }
+            Err(e) => {
+                return Err(ExecuteError::RuntimeError {
+                    reason: Some(format!("linker.instantiate() failed: {}", e)),
+                });
+            }
+        };
 
         let default =
             instance
@@ -187,6 +245,10 @@ impl Executor for WasmExecutor {
             Err(e) if matches!(e.downcast_ref::<I32Exit>(), Some(I32Exit(0))) => Ok(()),
             other => other,
         };
+
+        if store.data().limit.memory_limit_exceeded {
+            return Err(ExecuteError::MemoryLimitExceeded(memory_limit));
+        }
 
         match result {
             Ok(()) => Ok(ExecuteResult {
