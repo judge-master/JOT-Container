@@ -92,7 +92,7 @@ impl ResourceLimiter for MyResourceLimiter {
         desired: usize,
         _maximum: Option<usize>,
     ) -> wasmtime::Result<bool> {
-        self.memory_used = current;
+        // self.memory_used = current;
         if self.table_used + desired > self.memory_limit {
             self.memory_limit_exceeded = true;
             return Err(wasmtime::Error::msg("Memory limit exceeded"));
@@ -107,8 +107,8 @@ impl ResourceLimiter for MyResourceLimiter {
         desired: usize,
         _maximum: Option<usize>,
     ) -> wasmtime::Result<bool> {
-        self.table_used = current * 8;
-        let desired_table_used = desired * 8;
+        // self.table_used = current * 4;
+        let desired_table_used = desired * 4;
         if self.memory_used + desired_table_used > self.memory_limit {
             self.memory_limit_exceeded = true;
             return Err(wasmtime::Error::msg("Memory limit exceeded"));
@@ -246,25 +246,23 @@ impl Executor for WasmExecutor {
             other => other,
         };
 
-        if store.data().limit.memory_limit_exceeded {
-            return Err(ExecuteError::MemoryLimitExceeded(memory_limit));
-        }
-
         match result {
             Ok(()) => Ok(ExecuteResult {
                 output: String::from_utf8_lossy(memory_output.contents().iter().as_slice()).into(),
-                memory_used: instance
-                    .get_memory(&mut store, "memory")
-                    .map(|m| m.size(&store) * m.page_size(&store))
-                    .unwrap_or(0),
+                memory_used: //instance
+                    // .get_memory(&mut store, "memory")
+                    // .map(|m| m.size(&store) * m.page_size(&store))
+                    // .unwrap_or(0),
+                    (store.data().limit.memory_used + store.data().limit.table_used) as u64,
                 instruction_count: initial_fuel - store.get_fuel().unwrap(),
             }),
+            Err(_) if store.data().limit.memory_limit_exceeded => {
+                return Err(ExecuteError::MemoryLimitExceeded(memory_limit));
+            }
             Err(e) => {
                 if e.root_cause().downcast_ref::<Trap>() == Some(&Trap::OutOfFuel) {
                     Err(ExecuteError::TimeLimitExceeded(time_limit))
-                }
-                // todo: MLE
-                else {
+                } else {
                     Err(ExecuteError::RuntimeError {
                         reason: Some(e.to_string()),
                     })
@@ -290,9 +288,7 @@ async fn test_wasm_tle() {
     let executor = WasmExecutor::new(
         include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/aplusb.wasm")).to_vec(),
     );
-    let result = executor
-        .execute("1 2", 1048576, 10)
-        .await;
+    let result = executor.execute("1 2", 1048576, 10).await;
     assert!(matches!(result, Err(ExecuteError::TimeLimitExceeded(_))));
 }
 #[tokio::test]
@@ -300,9 +296,7 @@ async fn test_wasm_mle() {
     let executor = WasmExecutor::new(
         include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/aplusb.wasm")).to_vec(),
     );
-    let result = executor
-        .execute("1 2", 1000, 100000)
-        .await;
+    let result = executor.execute("1 2", 1000, 100000).await;
     assert!(matches!(result, Err(ExecuteError::MemoryLimitExceeded(_))));
 }
 
