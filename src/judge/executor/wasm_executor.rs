@@ -57,23 +57,23 @@ impl WasmExecutor {
     }
 }
 
-struct MyState {
+struct MemoryCheckState {
     ctx: WasiP1Ctx,
-    limit: MyResourceLimiter,
+    limit: MemoryLimiter,
 }
-impl WasiView for MyState {
+impl WasiView for MemoryCheckState {
     fn ctx(&mut self) -> WasiCtxView<'_> {
         self.ctx.ctx()
     }
 }
 
-struct MyResourceLimiter {
+struct MemoryLimiter {
     memory_limit: usize,
     memory_limit_exceeded: bool,
     memory_used: usize,
     table_used: usize,
 }
-impl MyResourceLimiter {
+impl MemoryLimiter {
     fn new(memory_limit: usize) -> Self {
         Self {
             memory_limit,
@@ -83,7 +83,7 @@ impl MyResourceLimiter {
         }
     }
 }
-impl ResourceLimiter for MyResourceLimiter {
+impl ResourceLimiter for MemoryLimiter {
     fn memory_growing(
         &mut self,
         _current: usize,
@@ -134,7 +134,7 @@ impl Executor for WasmExecutor {
     ) -> Result<ExecuteResult, ExecuteError> {
         let engine = self.engine.clone();
 
-        let mut linker = Linker::<MyState>::new(&engine);
+        let mut linker = Linker::<MemoryCheckState>::new(&engine);
         if let Err(_) = wasmtime_wasi::p1::add_to_linker_sync(&mut linker, |s| &mut s.ctx) {
             return Err(ExecuteError::RuntimeError {
                 reason: Some("add_to_linker_sync() failed".into()),
@@ -182,9 +182,9 @@ impl Executor for WasmExecutor {
 
         let mut store = Store::new(
             &engine,
-            MyState {
+            MemoryCheckState {
                 ctx: wasi,
-                limit: MyResourceLimiter::new(memory_limit as usize),
+                limit: MemoryLimiter::new(memory_limit as usize),
             },
         );
         store.limiter(|store| &mut store.limit);
