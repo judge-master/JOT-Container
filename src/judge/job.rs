@@ -170,27 +170,57 @@ impl JudgeJob {
             })
             .await?;
 
-        // TODO: 테스트 케이스 적용 구현
-        // let _ = compiler_result
-        //     .executor
-        //     .execute("1 2", limits.memory_bytes, limits.instruction_count)
-        //     .await;
-
-        // todo: grader에 stream 기능 만들어야 함
         let grader = Grader::new(LcmpChecker::new(), compiler_result.executor);
 
-        let grade_result = grader
-            .grade(Problem {
-                memory_limit: self.request.memory_bytes_limit,
-                instruction_limit: self.request.instruction_count_limit,
-                tests: testcases,
-            })
-            .await;
+        let mut stream = grader.grade_stream(Problem {
+            memory_limit: self.request.memory_bytes_limit,
+            instruction_limit: self.request.instruction_count_limit,
+            tests: testcases,
+        });
+        let grade_result = loop {
+            let Some(data) = stream.recv().await else {
+                self.response_channel
+                    .send(JudgeEvent {
+                        request_id: self.request.request_id,
+                        payload: Some(jot_proto::judge::v1::judge_event::Payload::Result(
+                            jot_proto::judge::v1::JudgeResult {
+                                verdict: Some(Verdict::SystemError(proto::JudgeSystemError {
+                                    error_message: "Grader stream closed unexpectedly".into(),
+                                })),
+                                ..Default::default()
+                            },
+                        )),
+                    })
+                    .await?;
+                return Ok(());
+            };
+            match data {
+                grader::GradeStreamData::Progress {
+                    completed_cases,
+                    total_cases,
+                } => {
+                    let event = JudgeEvent {
+                        request_id: self.request.request_id,
+                        payload: Some(jot_proto::judge::v1::judge_event::Payload::Running(
+                            proto::JudgeRunning {
+                                completed_cases,
+                                total_cases,
+                            },
+                        )),
+                    };
+                    self.response_channel.send(event).await?;
+                }
+                grader::GradeStreamData::Result(grade_result) => {
+                    break grade_result;
+                }
+            }
+        };
 
         let verdict = match grade_result.verdict {
+            // 현재 subproblem이 지원되지 않기 때문에 맞은 subproblem 개수는 1
             grader::Verdict::Accepted => Verdict::Complete(proto::JudgeComplete {
-                correct_subproblems: total_cases,
-                total_subproblems: total_cases,
+                correct_subproblems: 1,
+                total_subproblems: 1,
                 instruction_count: grade_result.instruction_count,
                 memory_bytes: grade_result.memory_used,
             }),
